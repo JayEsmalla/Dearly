@@ -1,384 +1,381 @@
-# Dearly Design System
+# Dearly Front-End Design
 
-**Status:** Active source of truth for Dearly's UI, UX, and front-end presentation  
-**Applies to:** Marketing pages, gift creation, gift management, and recipient experiences
+**Design source of truth** · UI, UX, typography, layout, and interaction
 
-This document defines how Dearly should look, feel, move, and communicate. New front-end work should follow these standards before introducing new visual patterns.
+## 1. North Star
 
-## 1. Design Direction
+Dearly is a **modern correspondence studio**: calm enough to write in, warm enough to feel personal, and theatrical only when the recipient opens the gift.
 
-### Editorial Love-Letter Atelier
+The sender interface is compact and task-first. The recipient experience is spacious and emotional.
 
-Dearly should feel like a handwritten keepsake refined by an editorial designer: warm paper, expressive typography, pressed flowers, envelopes, ribbons, and carefully imperfect arrangements.
+**Promise:** Made with feeling. Sent with love.
 
-The experience is:
+### Design principles
 
-- **Emotional, not sentimental:** Warm and sincere without becoming childish or overly decorative.
-- **Crafted, not corporate:** It should feel made by a person, not assembled from generic dashboard components.
-- **Elegant, not formal:** Refined typography and generous space should still feel welcoming.
-- **Magical, not confusing:** Delight belongs in the reveal; the creation flow remains clear and predictable.
-- **Digital, but tactile:** Paper, ink, folds, seals, and depth make the browser experience feel gift-like.
+1. **One decision per view.** The next action is always obvious.
+2. **Preview early.** Show the gift as soon as the sender adds content.
+3. **Keep the sender moving.** Avoid oversized headings, decorative dead space, and long setup forms.
+4. **Save the magic for the reveal.** Creation feels calm; opening feels special.
+5. **Say exactly what happens.** Never imply saving, publishing, privacy, or delivery before it is real.
+6. **Accessible by default.** Keyboard, contrast, zoom, semantics, and reduced motion are release requirements.
 
-### Signature Idea
+## 2. Primary User Journey
 
-The memorable Dearly moment is the transition from a calm creation interface into a theatrical recipient reveal. The sender should feel like they are preparing a real gift, and the recipient should feel like they are opening one.
+The front end is organized around the sender’s actual sequence:
 
-### Brand Promise
+| Moment | User question | UI response | Primary action |
+|---|---|---|---|
+| Discover | “Can I make something meaningful here?” | Show a real gift preview and the short process | Create a gift |
+| Occasion | “What am I celebrating?” | Compact, scannable occasion choices | Choose an occasion |
+| Format | “What kind of gift fits?” | Six concise gift-format cards | Choose a gift type |
+| Personalize | “What should I say?” | Focused fields beside a live preview | Wrap & preview |
+| Check | “What will they experience?” | Full recipient preview | Open gift |
+| Publish | “How do I send it?” | Later phase: privacy, schedule, and link controls | Publish gift |
 
-**Made with feeling. Sent with love.**
+### Friction rules
 
-## 2. Experience Principles
+- A first-time sender reaches personalization in three selections or fewer.
+- The primary action appears within the initial viewport on common laptop screens.
+- No step asks for information that is not needed yet.
+- Back actions preserve context in the URL and, once persistence exists, preserve entered content.
+- Mobile layouts show controls before preview; desktop shows them side by side.
 
-### Feeling First
+## 3. Information Architecture
 
-Lead with the person, occasion, and message. Avoid exposing technical decisions unless the user needs them.
+### Current Phase 1
 
-### Guide One Decision at a Time
+```text
+/
+└── /create
+    ├── occasion
+    ├── gift type
+    └── /create/personalize
+        ├── content
+        ├── theme
+        └── recipient preview
+```
 
-Use progressive steps for occasion, gift type, personalization, wrapping, and delivery. Each screen should have one obvious primary action.
+### Planned product structure
 
-### Show the Result Early
+```text
+/
+├── /create
+├── /g/{publicId}          recipient experience
+├── /dashboard
+│   ├── gifts
+│   ├── drafts
+│   └── templates
+└── /gift/{id}/manage      privacy, delivery, reactions
+```
 
-Personalization tools should update a live preview. Users should not need to imagine how their gift will look.
+Do not add top-level routes until a real user task requires them.
 
-### Protect the Reveal
+## 4. Page Blueprints
 
-Sender tools may be practical, but recipient screens must remain immersive. Navigation, account prompts, and platform promotion should never interrupt the opening moment.
+### Landing page
 
-### Make Empty States Feel Inviting
+Goal: establish emotional value and move interested users into creation quickly.
 
-Blank drafts should include gentle prompts and tasteful defaults rather than empty white boxes.
+Order:
 
-### Accessibility Is Part of the Gift
-
-Keyboard navigation, readable contrast, reduced motion, semantic structure, and clear focus states are required—not optional finishing work.
-
-## 3. Brand Foundations
-
-### Color System
-
-| Token | Value | Role |
-|---|---:|---|
-| `--paper` | `#FFFAF5` | Primary page background and warm neutral surface |
-| `--paper-deep` | `#F7EEE6` | Secondary surface and subtle section contrast |
-| `--ink` | `#3F1720` | Primary text and strongest readable foreground |
-| `--muted` | `#785F61` | Supporting copy and secondary information |
-| `--wine` | `#6F1D35` | Primary brand action, headings, and controls |
-| `--wine-dark` | `#4B1022` | Dark immersive sections and strong action states |
-| `--coral` | `#E56F61` | Emotional accent, emphasis, and active detail |
-| `--rose` | `#EFB7AD` | Soft decorative accent and highlights |
-| `--blush` | `#F8DCD4` | Large warm surfaces and recipient scenes |
-| `--peach` | `#F6C79F` | Celebratory secondary accent |
-| `--sage` | `#A9AD91` | Grounding botanical accent |
-| `--line` | `rgba(75, 16, 34, 0.14)` | Borders, separators, and quiet structure |
+1. Compact header
+2. Hero with product promise, primary action, and real gift preview
+3. Occasion shortcuts
+4. Gift formats
+5. Three-step explanation
+6. Recipient experience proof
+7. Final action and compact footer
 
 Rules:
 
-- Warm paper is the default background; pure white is reserved for cards and focused content surfaces.
-- Wine is the default primary-action color.
-- Coral is an accent, not a body-text color on light surfaces.
-- Dark sections use wine-dark with paper or blush foregrounds.
-- New colors must belong to a named gift theme or communicate a meaningful state.
-- Do not introduce purple-to-blue gradients, neon accents, or cool gray interfaces.
+- Hero fits comfortably within one laptop viewport.
+- Use one headline, one supporting paragraph, and no more than two actions.
+- Product UI or gift preview carries more weight than decorative copy.
+- Keep the page to roughly four to five screen lengths on desktop.
+
+### Occasion and gift selection
+
+Goal: help the sender decide without reading a long page.
+
+- Keep context and progress in a compact left rail on desktop.
+- Use two-column selection grids where space allows.
+- Occasion cards are short rows; gift cards include one simple symbol and one sentence.
+- Keep all common options visible within one or two viewports.
+- The selected occasion remains visible while choosing a format.
+
+### Personalization editor
+
+Goal: let the sender write and immediately understand the result.
+
+- Fixed-width control panel: approximately `360px–420px`.
+- Preview takes remaining space.
+- Put recipient, sender, message, theme, and primary action in that order.
+- Keep “Wrap & preview” visible without excessive scrolling on a typical laptop.
+- Use a compact device or canvas frame; the content matters more than browser chrome.
+- Phase limitations appear as quiet helper text, not a dominant warning.
+
+### Recipient preview
+
+Goal: demonstrate anticipation and reveal without sender-interface clutter.
+
+- Full viewport.
+- One close action.
+- Recipient name, wrapped object, and one open action.
+- Reveal is readable, replayable, and functional with reduced motion.
+- Dearly branding is secondary to the message.
+
+### Future dashboard
+
+Goal: help a returning sender act on gifts, not admire analytics.
+
+- Start with recent gifts and status.
+- Use a compact editorial list before introducing card grids.
+- Statuses: Draft, Wrapped, Published, Opened, Replied.
+- Metrics are secondary and only included when they help make a decision.
+
+## 5. Visual Language
+
+### Direction
+
+**Modern correspondence studio**
+
+- Warm paper foundations
+- Fine ink borders
+- Compact editorial layouts
+- Quiet botanical and envelope motifs
+- Small moments of tactile depth
+- Controlled coral highlights
+
+Avoid generic SaaS dashboards, glass panels, purple gradients, glossy 3D icons, large empty hero areas, and repeated oversized serif headlines.
 
 ### Typography
 
-| Purpose | Typeface | Guidance |
+| Role | Typeface | Use |
 |---|---|---|
-| Display and emotional copy | Fraunces Variable | Headlines, gift messages, signatures, and expressive labels |
-| Interface and body copy | Manrope Variable | Navigation, forms, buttons, instructions, and metadata |
+| Editorial display | Newsreader Variable | Brand, headlines, gift messages, signatures |
+| Interface and reading | Figtree Variable | Navigation, fields, buttons, labels, body copy |
+
+Type rules:
+
+- Display type is restrained, not monumental.
+- Italics highlight one emotional phrase, never an entire paragraph.
+- Interface copy uses normal casing except small metadata labels.
+- Body copy is at least `15px` on sender screens and `16px` for recipient messages.
+- Line length stays near `55–70` characters.
+
+### Type scale
+
+| Token | Desktop | Mobile | Use |
+|---|---:|---:|---|
+| `--text-hero` | `clamp(3.25rem, 5vw, 5.25rem)` | `clamp(2.8rem, 13vw, 4rem)` | Landing hero only |
+| `--text-page` | `clamp(2.5rem, 4vw, 4rem)` | `2.75rem` | Workflow title |
+| `--text-section` | `clamp(2.1rem, 3.2vw, 3.4rem)` | `2.35rem` | Marketing sections |
+| `--text-card` | `1.2rem` | `1.1rem` | Choice and feature cards |
+| `--text-body` | `0.95rem` | `0.95rem` | Reading copy |
+| `--text-label` | `0.7rem` | `0.68rem` | Metadata and field labels |
+
+### Color tokens
+
+| Token | Value | Role |
+|---|---:|---|
+| `--paper` | `#FCF8F3` | Page background |
+| `--surface` | `#FFFDF9` | Cards and inputs |
+| `--surface-warm` | `#F4EAE2` | Secondary panels |
+| `--ink` | `#32171D` | Primary text |
+| `--muted` | `#715E61` | Supporting text |
+| `--wine` | `#6D263B` | Primary action and brand |
+| `--wine-strong` | `#491524` | Dark surface and hover |
+| `--coral` | `#DF7468` | Emotional accent |
+| `--blush` | `#EFC2B8` | Gift and illustration surface |
+| `--sage` | `#8D987E` | Botanical theme |
+| `--gold` | `#C58A49` | Celebratory theme |
+| `--line` | `rgba(73, 21, 36, 0.14)` | Structure and dividers |
+| `--focus` | `#B94E61` | Keyboard focus ring |
 
 Rules:
 
-- Display headlines use tight tracking and compact line height.
-- Italic Fraunces highlights emotionally important words, never whole paragraphs.
-- Body text should remain between `0.78rem` and `1.05rem` with generous line height.
-- Uppercase labels use Manrope, small sizing, heavy weight, and wide letter spacing.
-- Avoid Inter, Arial, Roboto, system font stacks, and additional display fonts.
+- Use wine for primary actions.
+- Coral is an accent, not small body text.
+- Pure white is reserved for cards and gift paper.
+- A page uses one dominant warm surface and no more than two accents.
+- New colors require a functional state or named gift theme.
 
-Recommended type scale:
+### Spacing and density
 
-| Style | Size | Line height | Use |
-|---|---|---|---|
-| Hero | `clamp(3.5rem, 6.25vw, 7rem)` | `0.93` | Marketing statement only |
-| Page title | `clamp(3.1rem, 5.5vw, 5.8rem)` | `0.92` | Creation and major workflow pages |
-| Section title | `clamp(2.8rem, 5vw, 5.4rem)` | `0.98` | Primary section headings |
-| Card title | `1.25rem–1.65rem` | `1.1–1.2` | Cards and selectable options |
-| Body | `0.85rem–1rem` | `1.7–1.85` | Explanatory content |
-| Label | `0.58rem–0.68rem` | `1.4–1.6` | Steps, fields, and metadata |
+Base rhythm: `4px`.
 
-### Spacing
+```text
+4  8  12  16  20  24  32  40  48  64  80  96
+```
 
-Use a consistent 4-pixel base rhythm.
+- Header height: `64px` desktop, `60px` mobile.
+- Page gutter: `20px` mobile, `32px–64px` desktop.
+- Marketing section padding: `64px–96px` desktop, `48px–64px` mobile.
+- Workflow section padding: `32px–56px`.
+- Standard control height: `44px–48px`.
+- Card padding: `16px–24px`.
+- Standard gap: `12px` or `16px`.
 
-`4, 8, 12, 16, 24, 32, 48, 64, 96, 128`
+Compact means reducing empty space, not reducing readability or touch targets.
 
-- Page gutters: `20px` mobile, `clamp(32px, 6vw, 96px)` desktop.
-- Major section spacing: `88px–160px` depending on viewport.
-- Component spacing: prefer `12px`, `16px`, or `24px`.
-- Related labels and inputs: `6px–8px`.
-- Use generous negative space around emotional copy and gift previews.
+### Grid
 
-### Layout
+- Marketing maximum width: `1240px`.
+- Workflow maximum width: `1120px`.
+- Text column maximum: `620px`.
+- Editor controls: `360px–420px`.
+- Standard desktop grid: 12 columns.
+- Compact choice grids: 2 columns; gift formats may use 3 on wide screens.
 
-- Maximum marketing content width: `1440px`.
-- Maximum focused workflow width: `1250px–1400px`.
-- Marketing layouts may be asymmetric and editorial.
-- Workflow layouts should use stable two-column structures: decisions on the left, preview or choices on the right.
-- Recipient experiences should center the gift and remove unrelated interface elements.
-- Do not center every section or place every feature inside an identical card grid.
+### Shape and depth
 
-### Shape and Borders
+- Default radius: `12px`.
+- Compact radius: `8px` for fields and rows.
+- Pill radius is reserved for primary actions, status, and filters.
+- Default border: `1px solid var(--line)`.
+- Shadows use translucent wine and stay close to the surface.
+- Decorative paper may rotate up to `2deg`; functional UI remains aligned.
 
-- Standard border: `1px solid var(--line)`.
-- Primary actions: fully rounded pill.
-- Input controls: square or subtly softened corners; avoid oversized rounded form fields.
-- Gift and paper surfaces: slightly imperfect rotation between `-5deg` and `5deg` when decorative.
-- Recipient phone or presentation frames may use larger, expressive radii.
-- Use circles for seals, step markers, theme swatches, and small symbolic controls.
-
-### Depth and Texture
-
-- Shadows should resemble layered paper, not floating software panels.
-- Preferred shadow color is translucent wine, not neutral black.
-- Use subtle grain, dashed stitching, paper folds, botanical forms, and envelope geometry.
-- Decorative texture must never reduce text readability.
-- Avoid glassmorphism, glossy 3D icons, stock illustration packs, and generic gradient blobs.
-
-## 4. Core Components
-
-### Brand Mark
-
-- Use the stylized heart-and-wordmark combination where space allows.
-- The compact heart mark may be used for seals, favicons, and small controls.
-- Keep the mark wine/coral on light backgrounds and blush/paper on dark backgrounds.
-- Never stretch, outline heavily, or place the mark inside an unrelated geometric container.
+## 6. Components
 
 ### Header
 
-- Marketing header: brand left, navigation centered, primary action right.
-- Workflow header: brand left, progress or context centered, exit/back action right.
-- Mobile headers hide nonessential navigation but retain the primary action or back control.
+- Brand left, key navigation center, primary action right.
+- Workflow header shows progress and exit/back context.
+- Mobile hides secondary navigation, not the primary action.
 
 ### Buttons
 
-Primary:
+- One primary action per region.
+- Labels describe outcomes: “Choose Birthday,” “Personalize gift,” “Wrap & preview.”
+- Primary buttons use wine, paper text, and a directional arrow.
+- Secondary actions use a border or text treatment.
+- Hover moves no more than `2px`; focus uses a visible `3px` ring.
 
-- Wine background with paper text.
-- Pill shape, compact label, and right arrow.
-- Hover raises the button `2px–3px` and slightly deepens the shadow.
+### Choice cards
 
-Secondary:
-
-- Paper background on dark or colored surfaces.
-- Wine text with the same pill proportions as primary actions.
-
-Text action:
-
-- Plain text with a quiet underline or directional arrow.
-- Use for back, replay, change, and low-priority navigation.
-
-Rules:
-
-- Use one primary action per decision area.
-- Button labels should describe the outcome: “Personalize your gift,” not “Continue.”
-- Disabled actions must look disabled and explain what is missing nearby.
-
-### Choice Cards
-
-- Show the choice name, a short emotional description, and a directional cue.
-- Occasion lists favor editorial rows; gift types favor illustrated cards.
-- Hover may raise, rotate slightly, or change paper color.
-- Selected cards require more than color alone: border, check, label, or shape change.
+- Entire card is interactive.
+- Name is the strongest element; description is one line when possible.
+- Selected state uses shape or icon plus color.
+- Hover changes border and background without dramatic rotation.
 
 ### Forms
 
-- Labels sit above fields and use uppercase interface styling.
-- Helper text and counts align with the label row.
-- Inputs use paper surfaces with wine/coral focus treatment.
-- Errors appear beneath the field with plain-language recovery guidance.
-- Preserve user input when moving backward through the creation flow.
+- Labels above fields.
+- Helper text and character counts share the label row.
+- Error copy appears directly beneath the field.
+- Inputs use at least `44px` height and a visible focus ring.
+- Message field should show roughly four lines before scrolling.
 
 ### Progress
 
-- Use a three-segment progress line for short creation flows.
-- Always pair visual progress with readable text such as “Step 2 of 3.”
-- Progress describes meaningful user decisions, not every technical screen.
+- Show readable step text and a short segmented line.
+- Keep progress visible during creation.
+- Count meaningful decisions, not technical pages.
 
-### Live Preview
+### Preview
 
-- Preview appears beside controls on large screens and below them on small screens.
-- The preview must reflect content and theme changes immediately.
-- A quiet “Live preview” indicator is acceptable in sender tools but never in the recipient view.
+- Live updates are immediate.
+- Preview content remains legible at compact sizes.
+- A subtle label distinguishes sender preview from recipient mode.
 
-### Modal and Recipient Reveal
+### Dialog
 
-- The preview modal occupies the full viewport and visually leaves the editor behind.
-- Begin with anticipation: recipient name, wrapped object, and one clear open action.
-- Reveal motion should be brief, purposeful, and replayable.
-- Keep close controls available and keyboard reachable.
+- Full recipient preview uses a modal or dedicated route.
+- Close control is always visible.
+- Production dialogs trap focus and restore it on close.
+- Escape closes non-destructive previews.
 
-### Status and Feedback
+## 7. Interaction and Motion
 
-Use consistent language:
+Motion exists for orientation, tactility, or reveal.
 
-- Draft
-- Wrapped
-- Published or Sent
-- Opened
-- Replied
+- Interface feedback: `160ms–220ms`.
+- Page entrance: `300ms–450ms`.
+- Gift reveal: `500ms–800ms`.
+- Use one coordinated entrance, not constant ambient movement.
+- Never delay the next action for decoration.
+- Honor `prefers-reduced-motion` with equivalent instant states.
 
-Success feedback should be warm but direct. Error feedback should be calm, specific, and never blame the user.
+Every interactive element defines default, hover, focus, active, selected, disabled, loading, error, and success where applicable.
 
-## 5. Interaction States
+## 8. Responsive Rules
 
-Every interactive component must define:
-
-- Default
-- Hover
-- Keyboard focus
-- Active or pressed
-- Selected, when applicable
-- Disabled
-- Loading, when applicable
-- Error and success, when applicable
-
-Focus states must remain visible against every gift theme. Do not remove outlines without providing an equally visible replacement.
-
-## 6. Motion
-
-Motion supports three purposes:
-
-1. **Orientation:** Explain where content came from or what changed.
-2. **Tactility:** Give cards, buttons, and wrapping elements a physical response.
-3. **Emotion:** Make the opening and reveal feel special.
-
-Guidelines:
-
-- Interface transitions: `180ms–300ms`.
-- Page or reveal entrances: `450ms–800ms`.
-- Preferred easing: smooth cubic curves with a gentle landing.
-- Use one coordinated entrance rather than constant unrelated movement.
-- Decorative floating motion must remain slow and subtle.
-- Respect `prefers-reduced-motion`; all functionality must work without animation.
-- Never delay task completion for decorative animation.
-
-## 7. Responsive Behavior
-
-| Range | Behavior |
+| Width | Layout |
 |---|---|
-| Up to `620px` | Single-column workflows, compact header, stacked fields |
-| `621px–760px` | Mobile marketing layout and single-column gift cards |
-| `761px–900px` | Compact tablet layout; preview may move below controls |
-| `901px–1100px` | Two-column layouts with reduced spacing |
-| Above `1100px` | Full editorial compositions and expanded navigation |
+| `< 640px` | Single column, compact header, stacked fields |
+| `640px–899px` | Single-column workflow with wider cards |
+| `900px–1199px` | Two-column layouts with reduced gutters |
+| `≥ 1200px` | Full compact editorial layout |
 
-Rules:
+- Minimum practical touch target: `44px`.
+- No horizontal scrolling.
+- Mobile content order: context → controls → action → preview.
+- Avoid hiding essential information behind hover.
+- Test at `390×844`, `768×1024`, and `1280×720`.
 
-- Design mobile layouts deliberately; do not merely shrink desktop components.
-- Keep touch targets at least `44px` where practical.
-- Avoid horizontal scrolling at every supported width.
-- Gift text must remain readable without zooming.
-- On small screens, content order is: context, controls, primary action, preview.
+## 9. Accessibility
 
-## 8. Accessibility
+- WCAG AA contrast for text and controls.
+- Logical heading hierarchy.
+- Visible keyboard focus on every interactive element.
+- Real labels for form fields.
+- State never relies on color alone.
+- Decorative artwork is hidden from assistive technology.
+- Functional UI works at 200% zoom.
+- Async feedback uses appropriate live regions.
+- Recipient text remains readable without animation.
 
-- Meet WCAG AA contrast for text and functional controls.
-- Use semantic headings in a logical hierarchy.
-- Give decorative artwork `aria-hidden="true"`.
-- Give previews and dialogs useful accessible names.
-- All creation and unwrapping actions must work by keyboard.
-- Use real labels for every form field.
-- Never communicate state through color alone.
-- Maintain readable layouts at 200% zoom.
-- Announce important async status changes with appropriate live regions.
-- Trap focus inside modal dialogs when production dialog behavior is introduced.
+## 10. Voice
 
-## 9. Content and Voice
+Dearly sounds like a thoughtful friend: warm, concise, and specific.
 
-Dearly speaks like a thoughtful friend with excellent taste.
+Prefer:
 
-Use:
-
-- Warm, short sentences.
-- Concrete outcomes.
-- Gentle encouragement.
-- Human words such as “make,” “open,” “wrap,” “remember,” and “send.”
+- Create a gift
+- Choose the moment
+- Write what you want them to remember
+- Wrap & preview
+- Open your gift
 
 Avoid:
 
-- Corporate language such as “asset,” “content object,” or “user artifact.”
-- Artificial urgency.
-- Excessive exclamation marks.
-- Claims that a gift is saved, private, scheduled, or published before the system confirms it.
-- Generic labels such as “Submit” when a specific action is possible.
+- Submit
+- Proceed
+- Create artifact
+- Configure experience
+- Artificial urgency or excessive exclamation marks
 
-Example:
+## 11. Front-End Standards
 
-- Prefer: **Wrap & preview**
-- Avoid: **Proceed to next step**
+- Centralize tokens as CSS custom properties.
+- Reuse shared brand, button, progress, card, and field patterns.
+- Keep server components by default; use client components only for interaction.
+- Use `Link` for app navigation.
+- Keep essential layout in normal document flow.
+- Prefer CSS for simple motion and illustration.
+- Do not add a dependency unless the user experience requires it.
+- Verify lint, types, production build, keyboard use, reduced motion, and responsive layouts before release.
 
-## 10. Page Patterns
+## 12. Redesign Acceptance
 
-### Marketing
+The compact redesign is complete when:
 
-- Lead with emotional value, then explain the mechanism.
-- Use tactile illustrations and asymmetrical compositions.
-- Alternate quiet paper sections with one or two immersive color sections.
-- End major pages with a confident, singular creation action.
+- The landing hero and primary action fit within `1280×720`.
+- Occasion and gift choices are faster to scan than the previous long-list layout.
+- The personalization action is reachable without excessive scrolling.
+- Typography is consistent across sender and recipient surfaces.
+- The full Phase 1 journey works on desktop and mobile.
+- No current behavior is lost.
+- Lint, strict type checking, and production build pass.
 
-### Gift Creation
+## 13. Design Review
 
-- Present one decision stage at a time.
-- Keep progress visible.
-- Provide reassuring defaults.
-- Show the gift preview as soon as personalization begins.
-- Separate publishing and privacy decisions from creative editing.
+Before merging a front-end change, ask:
 
-### Dashboard
-
-- Preserve Dearly's warmth while increasing information density.
-- Favor editorial lists and compact status chips over generic analytics cards.
-- Place the most recent or actionable gifts first.
-- Metrics should help users act, not decorate the page.
-
-### Recipient Experience
-
-- Hide sender tools, dashboard navigation, and unrelated calls to action.
-- Center anticipation, reveal, content, and reaction.
-- Keep Dearly branding quiet and secondary to the gift.
-- Ensure scheduled, PIN-protected, expired, and disabled states remain gracious and clear.
-
-## 11. Front-End Implementation Rules
-
-- Define reusable color, type, spacing, motion, and shadow values as CSS custom properties.
-- Reuse existing components before creating variants.
-- Keep content data separate from visual presentation when lists or templates repeat.
-- Prefer CSS for simple decorative motion; add a motion library only for complex state choreography.
-- Avoid absolute positioning for essential layout or reading order.
-- Optimize illustrations and effects for fast first paint.
-- Test every new surface at mobile, tablet, and desktop widths.
-- Verify lint, type checking, production build, keyboard use, and reduced motion before release.
-
-## 12. Design Review Checklist
-
-Before merging a front-end change, confirm:
-
-- Does it feel like a crafted digital gift rather than a generic web app?
-- Is there one obvious primary action?
-- Does it use the established color and typography system?
-- Is the layout intentional on mobile and desktop?
-- Are hover, focus, selected, disabled, error, and loading states covered?
-- Is the preview or outcome visible early enough?
-- Does the copy describe a human outcome?
-- Does it work without motion and with keyboard navigation?
-- Is recipient attention kept on the gift?
-- Has unnecessary decoration or component variation been removed?
-
-## 13. Governance
-
-- `DESIGN.md` is the design source of truth.
-- Changes to brand foundations or core component behavior must update this file in the same change.
-- Page-specific experiments may extend the system but must not silently redefine it.
-- When implementation and this document disagree, either align the implementation or explicitly update the design decision here.
-- Prefer evolving a shared pattern over creating a one-page exception.
+1. Is the next action obvious?
+2. Did we remove unnecessary height, copy, or decoration?
+3. Is the content still comfortable to read and tap?
+4. Does it use the shared type, color, spacing, and component rules?
+5. Is the sender interface calm and the recipient reveal special?
+6. Does it work by keyboard, without motion, and on mobile?
