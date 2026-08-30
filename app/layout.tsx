@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import "@fontsource-variable/fraunces/wght.css";
-import "@fontsource-variable/manrope/wght.css";
+import "@fontsource-variable/figtree/wght.css";
+import "@fontsource-variable/newsreader/wght.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Dearly — Made with feeling. Sent with love.",
+  title: "Dearly — Thoughtful digital gifts",
   description:
     "Create thoughtful digital gifts that feel as meaningful to open as they were to make.",
 };
