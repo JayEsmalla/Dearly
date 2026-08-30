@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLink } from "@/app/ui/brand";
-import { defaultGiftFormatDetails, GiftFormatExperience, GiftFormatFields } from "./gift-format-experience";
+import { defaultGiftFormatDetails, GiftFormatExperience, GiftFormatFields, type GiftFormatDetails } from "./gift-format-experience";
 
 const themes = [
   { name: "Rose", color: "#d96f68", paper: "#fffaf5" },
@@ -14,6 +14,33 @@ const themes = [
 
 type GiftEditorProps = { occasion: string; gift: string };
 type PublishedGift = { publicId: string; shareUrl: string };
+type LocalGiftDraft = {
+  version: 1;
+  recipient: string;
+  sender: string;
+  message: string;
+  details: GiftFormatDetails;
+  themeName: string;
+  savedAt: string;
+};
+
+const detailKeys: (keyof GiftFormatDetails)[] = [
+  "headline", "flower", "memoryOne", "memoryTwo", "memoryThree",
+  "surpriseOne", "surpriseTwo", "surpriseThree", "wishOne", "wishTwo", "wishThree",
+];
+
+const getDraftKey = (occasion: string, gift: string) => `dearly:draft:v1:${encodeURIComponent(occasion)}:${encodeURIComponent(gift)}`;
+
+function restoreGiftDetails(value: unknown): GiftFormatDetails {
+  const restored = { ...defaultGiftFormatDetails };
+  if (!value || typeof value !== "object") return restored;
+  const source = value as Record<string, unknown>;
+  for (const key of detailKeys) {
+    const candidate = source[key];
+    if (typeof candidate === "string") restored[key] = candidate;
+  }
+  return restored;
+}
 
 export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
   const [recipient, setRecipient] = useState("Mia");
@@ -23,11 +50,81 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
   const [theme, setTheme] = useState(themes[0]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [unwrapped, setUnwrapped] = useState(false);
-  const [hasPreviewed, setHasPreviewed] = useState(false);
-  const [publishing, setPublishing] = useState(false);
+  const [, setHasPreviewed] = useState(false);
+  const [, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishedGift, setPublishedGift] = useState<PublishedGift | null>(null);
   const [copied, setCopied] = useState(false);
+  const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
+  const [draftStatus, setDraftStatus] = useState("Loading local draft…");
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const draftKey = getDraftKey(occasion, gift);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      let restoredRecipient = "Mia";
+      let restoredSender = "Leo";
+      let restoredMessage = "You make ordinary days feel worth remembering.";
+      let restoredDetails = { ...defaultGiftFormatDetails };
+      let restoredTheme = themes[0];
+      let restoredStatus = "Autosave ready";
+      let restoredSavedAt: number | null = null;
+
+      try {
+        const stored = window.localStorage.getItem(draftKey);
+        if (stored) {
+          const draft = JSON.parse(stored) as Partial<LocalGiftDraft>;
+          if (draft.version === 1) {
+            if (typeof draft.recipient === "string") restoredRecipient = draft.recipient.slice(0, 40);
+            if (typeof draft.sender === "string") restoredSender = draft.sender.slice(0, 40);
+            if (typeof draft.message === "string") restoredMessage = draft.message.slice(0, 240);
+            restoredDetails = restoreGiftDetails(draft.details);
+            restoredTheme = themes.find((option) => option.name === draft.themeName) ?? themes[0];
+            const savedTime = typeof draft.savedAt === "string" ? Date.parse(draft.savedAt) : Number.NaN;
+            if (!Number.isNaN(savedTime)) restoredSavedAt = savedTime;
+            restoredStatus = "Draft restored";
+          }
+        }
+      } catch {
+        restoredStatus = "Local storage unavailable";
+      }
+
+      setRecipient(restoredRecipient);
+      setSender(restoredSender);
+      setMessage(restoredMessage);
+      setDetails(restoredDetails);
+      setTheme(restoredTheme);
+      setLastSavedAt(restoredSavedAt);
+      setDraftStatus(restoredStatus);
+      setLoadedDraftKey(draftKey);
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (loadedDraftKey !== draftKey) return;
+    const timeout = window.setTimeout(() => {
+      try {
+        const savedAt = new Date();
+        const draft: LocalGiftDraft = {
+          version: 1,
+          recipient,
+          sender,
+          message,
+          details,
+          themeName: theme.name,
+          savedAt: savedAt.toISOString(),
+        };
+        window.localStorage.setItem(draftKey, JSON.stringify(draft));
+        setLastSavedAt(savedAt.getTime());
+        setDraftStatus("Saved locally");
+      } catch {
+        setDraftStatus("Local storage unavailable");
+      }
+    }, 450);
+    return () => window.clearTimeout(timeout);
+  }, [details, draftKey, loadedDraftKey, message, recipient, sender, theme]);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -54,6 +151,23 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
     setPublishedGift(null);
     setPublishError(null);
     setCopied(false);
+    if (loadedDraftKey === draftKey) setDraftStatus("Unsaved changes");
+  };
+
+  const startFreshDraft = () => {
+    resetPublication();
+    try {
+      window.localStorage.removeItem(draftKey);
+    } catch {
+      setDraftStatus("Local storage unavailable");
+    }
+    setRecipient("");
+    setSender("");
+    setMessage("");
+    setDetails({ ...defaultGiftFormatDetails });
+    setTheme(themes[0]);
+    setLastSavedAt(null);
+    setDraftStatus("Fresh draft started");
   };
 
   const publishCurrentGift = async () => {
@@ -124,6 +238,11 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
             <span className="step-label">Step 3 of 3</span>
             <h1 id="editor-title">Make it <em>personal.</em></h1>
             <p>Write the part only you could say. Your preview updates as you type.</p>
+          </div>
+
+          <div className="draft-status-row" role="status" aria-live="polite">
+            <span><i aria-hidden="true" />{draftStatus}{lastSavedAt ? <small> · {new Date(lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small> : null}</span>
+            <button type="button" onClick={startFreshDraft}>Start fresh</button>
           </div>
 
           <div className="field-grid">

@@ -201,6 +201,11 @@ h1 em, h2 em { color: var(--coral); font-weight: 470; }
 .editor-controls { padding: 28px 30px 24px; border-right: 1px solid var(--line); background: var(--paper); }
 .editor-heading h1 { margin: .5rem 0 0; font: 520 2.65rem/.98 var(--display); letter-spacing: -.05em; }
 .editor-heading > p { margin: .65rem 0 1.25rem; color: var(--muted); font-size: .77rem; line-height: 1.5; }
+.draft-status-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-height: 34px; margin: -.35rem 0 .85rem; padding: .45rem .6rem; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface) 72%, transparent); color: var(--muted); font-size: .58rem; }
+.draft-status-row > span { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; }
+.draft-status-row i { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #718b66; box-shadow: 0 0 0 3px rgba(113,139,102,.1); }
+.draft-status-row small { color: color-mix(in srgb, var(--muted) 82%, transparent); font-size: inherit; }
+.draft-status-row button { flex: 0 0 auto; padding: .2rem 0; cursor: pointer; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--wine); font-size: .57rem; font-weight: 720; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
 .editor-controls label > span, .theme-picker legend { display: flex; justify-content: space-between; margin-bottom: .38rem; color: var(--wine); font-size: .65rem; font-weight: 740; }
 .editor-controls label small { color: var(--muted); font-weight: 600; }
