@@ -84,3 +84,16 @@ export async function getPublicGift(publicId: string) {
   return data ? toPublicGift(data) : null;
 }
 
+export function getGiftAvailability(gift: PublicGift) {
+  const now = Date.now();
+
+  if (gift.expiresAt && new Date(gift.expiresAt).getTime() <= now) {
+    return { state: "expired" as const };
+  }
+
+  if (gift.opensAt && new Date(gift.opensAt).getTime() > now) {
+    return { state: "scheduled" as const, opensAt: gift.opensAt };
+  }
+
+  return { state: "available" as const };
+}
