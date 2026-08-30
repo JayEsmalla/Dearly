@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLink } from "@/app/ui/brand";
+import { defaultGiftFormatDetails, GiftFormatExperience, GiftFormatFields } from "./gift-format-experience";
 
 const themes = [
   { name: "Rose", color: "#d96f68", paper: "#fffaf5" },
@@ -18,6 +19,7 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
   const [recipient, setRecipient] = useState("Mia");
   const [sender, setSender] = useState("Leo");
   const [message, setMessage] = useState("You make ordinary days feel worth remembering.");
+  const [details, setDetails] = useState(defaultGiftFormatDetails);
   const [theme, setTheme] = useState(themes[0]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [unwrapped, setUnwrapped] = useState(false);
@@ -130,9 +132,11 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
           </div>
 
           <label className="message-field">
-            <span>Your message <small>{message.length}/240</small></span>
+            <span>{gift === "Digital Letter" ? "Your letter" : gift === "Greeting Card" ? "Inside message" : gift === "Virtual Flowers" ? "Bouquet note" : gift === "Memory Album" ? "Album dedication" : gift === "Gift Box" ? "Final note" : "Jar dedication"} <small>{message.length}/240</small></span>
             <textarea value={message} maxLength={240} rows={4} onChange={(event) => { resetPublication(); setMessage(event.target.value); }} placeholder="Write what you want them to remember…" />
           </label>
+
+          <GiftFormatFields gift={gift} details={details} onChange={(next) => { resetPublication(); setDetails(next); }} />
 
           <fieldset className="theme-picker">
             <legend>Color mood</legend>
@@ -157,11 +161,11 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
               <button className="preview-button" type="button" onClick={openPreview} disabled={!recipient.trim() || !sender.trim() || !message.trim()}>
                 Wrap & preview <span aria-hidden="true">→</span>
               </button>
-              <button className="publish-button" type="button" onClick={publishCurrentGift} disabled={!hasPreviewed || publishing}>
-                {publishing ? "Publishing…" : "Publish & get link"}
+              <button className="publish-button" type="button" onClick={publishCurrentGift} disabled>
+                Publishing returns after front-end completion
               </button>
               {publishError && <p className="publish-error" role="alert">{publishError}</p>}
-              <p className="local-note"><span aria-hidden="true">i</span> Preview first, then publish when everything feels right.</p>
+              <p className="local-note"><span aria-hidden="true">i</span> Publishing is intentionally inactive while the front-end experience is completed.</p>
             </>
           ) : (
             <section className="share-panel" aria-live="polite">
@@ -181,12 +185,7 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
           <div className="preview-label"><span><i /> Live preview</span><span>Recipient view</span></div>
           <div className="preview-canvas">
             <span className="preview-occasion">{occasion}</span>
-            <article className="editable-gift">
-              <p className="editable-to">Dear {recipient || "someone special"},</p>
-              <span className="editable-flower" aria-hidden="true">✿</span>
-              <blockquote>“{message || "Your message will appear here."}”</blockquote>
-              <p className="editable-from">Always, {sender || "you"}</p>
-            </article>
+            <GiftFormatExperience gift={gift} recipient={recipient} sender={sender} message={message} details={details} compact />
             <span className="preview-watermark">Made with Dearly</span>
           </div>
         </section>
@@ -204,11 +203,9 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
               <small>Made with Dearly by {sender}</small>
             </div>
           ) : (
-            <div className="unwrapped-view">
+            <div className="unwrapped-view format-reveal-view">
               <span className="reveal-heart" aria-hidden="true">♥</span>
-              <p className="editable-to">Dear {recipient},</p>
-              <blockquote>“{message}”</blockquote>
-              <p className="editable-from">Always, {sender}</p>
+              <GiftFormatExperience gift={gift} recipient={recipient} sender={sender} message={message} details={details} />
               <button type="button" onClick={() => setUnwrapped(false)}>Replay opening</button>
             </div>
           )}
