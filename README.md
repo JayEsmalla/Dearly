@@ -30,5 +30,3 @@ npm run lint
 npm run typecheck
 npm run build
 ```
-
-The current product direction and technical agreements are documented in [`Dearly_Project_Discussion_and_Agreements.md`](./Dearly_Project_Discussion_and_Agreements.md).

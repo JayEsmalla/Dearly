@@ -24,6 +24,9 @@ pnpm-debug.log*
 Thumbs.db
 *.swp
 
+# local project planning
+Dearly_Project_Discussion_and_Agreements.md
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
