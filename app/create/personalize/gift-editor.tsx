@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLink } from "@/app/ui/brand";
+import { RecipientExperience } from "@/app/ui/recipient-experience";
 import { defaultGiftFormatDetails, GiftFormatExperience, GiftFormatFields, type GiftFormatDetails } from "./gift-format-experience";
 
 const themes = [
@@ -12,6 +13,8 @@ const themes = [
   { name: "Gold", color: "#bd8040", paper: "#fff5e3" },
 ];
 
+const defaultFinalMessage = "No matter the occasion, I hope you remember how much you mean to me.";
+
 type GiftEditorProps = { occasion: string; gift: string };
 type PublishedGift = { publicId: string; shareUrl: string };
 type LocalGiftDraft = {
@@ -19,6 +22,7 @@ type LocalGiftDraft = {
   recipient: string;
   sender: string;
   message: string;
+  finalMessage?: string;
   details: GiftFormatDetails;
   themeName: string;
   savedAt: string;
@@ -46,10 +50,10 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
   const [recipient, setRecipient] = useState("Mia");
   const [sender, setSender] = useState("Leo");
   const [message, setMessage] = useState("You make ordinary days feel worth remembering.");
+  const [finalMessage, setFinalMessage] = useState(defaultFinalMessage);
   const [details, setDetails] = useState(defaultGiftFormatDetails);
   const [theme, setTheme] = useState(themes[0]);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [unwrapped, setUnwrapped] = useState(false);
   const [, setHasPreviewed] = useState(false);
   const [, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -65,6 +69,7 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
       let restoredRecipient = "Mia";
       let restoredSender = "Leo";
       let restoredMessage = "You make ordinary days feel worth remembering.";
+      let restoredFinalMessage = defaultFinalMessage;
       let restoredDetails = { ...defaultGiftFormatDetails };
       let restoredTheme = themes[0];
       let restoredStatus = "Autosave ready";
@@ -78,6 +83,7 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
             if (typeof draft.recipient === "string") restoredRecipient = draft.recipient.slice(0, 40);
             if (typeof draft.sender === "string") restoredSender = draft.sender.slice(0, 40);
             if (typeof draft.message === "string") restoredMessage = draft.message.slice(0, 240);
+            if (typeof draft.finalMessage === "string") restoredFinalMessage = draft.finalMessage.slice(0, 180);
             restoredDetails = restoreGiftDetails(draft.details);
             restoredTheme = themes.find((option) => option.name === draft.themeName) ?? themes[0];
             const savedTime = typeof draft.savedAt === "string" ? Date.parse(draft.savedAt) : Number.NaN;
@@ -92,6 +98,7 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
       setRecipient(restoredRecipient);
       setSender(restoredSender);
       setMessage(restoredMessage);
+      setFinalMessage(restoredFinalMessage);
       setDetails(restoredDetails);
       setTheme(restoredTheme);
       setLastSavedAt(restoredSavedAt);
@@ -112,6 +119,7 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
           recipient,
           sender,
           message,
+          finalMessage,
           details,
           themeName: theme.name,
           savedAt: savedAt.toISOString(),
@@ -124,7 +132,7 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
       }
     }, 450);
     return () => window.clearTimeout(timeout);
-  }, [details, draftKey, loadedDraftKey, message, recipient, sender, theme]);
+  }, [details, draftKey, finalMessage, loadedDraftKey, message, recipient, sender, theme]);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -141,7 +149,6 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
   }, [previewOpen]);
 
   const openPreview = () => {
-    setUnwrapped(false);
     setPreviewOpen(true);
     setHasPreviewed(true);
   };
@@ -164,6 +171,7 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
     setRecipient("");
     setSender("");
     setMessage("");
+    setFinalMessage("");
     setDetails({ ...defaultGiftFormatDetails });
     setTheme(themes[0]);
     setLastSavedAt(null);
@@ -257,6 +265,11 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
 
           <GiftFormatFields gift={gift} details={details} onChange={(next) => { resetPublication(); setDetails(next); }} />
 
+          <label className="message-field final-message-field">
+            <span>Final reveal note <small>{finalMessage.length}/180</small></span>
+            <textarea value={finalMessage} maxLength={180} rows={3} onChange={(event) => { resetPublication(); setFinalMessage(event.target.value); }} placeholder="Leave them with one last thought…" />
+          </label>
+
           <fieldset className="theme-picker">
             <legend>Color mood</legend>
             <div className="theme-options">
@@ -277,7 +290,7 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
 
           {!publishedGift ? (
             <>
-              <button className="preview-button" type="button" onClick={openPreview} disabled={!recipient.trim() || !sender.trim() || !message.trim()}>
+              <button className="preview-button" type="button" onClick={openPreview} disabled={!recipient.trim() || !sender.trim() || !message.trim() || !finalMessage.trim()}>
                 Wrap & preview <span aria-hidden="true">→</span>
               </button>
               <button className="publish-button" type="button" onClick={publishCurrentGift} disabled>
@@ -313,21 +326,16 @@ export default function GiftEditor({ occasion, gift }: GiftEditorProps) {
       {previewOpen && (
         <div className="gift-modal" role="dialog" aria-modal="true" aria-label="Recipient gift preview" style={previewStyle}>
           <button className="modal-close" type="button" onClick={() => setPreviewOpen(false)} aria-label="Close recipient preview" autoFocus>×</button>
-          {!unwrapped ? (
-            <div className="wrapped-view">
-              <p>A little something is waiting for</p>
-              <h2>{recipient}</h2>
-              <button className="wrapped-gift" type="button" onClick={() => setUnwrapped(true)} aria-label="Open your gift"><span className="gift-lid" /><span className="gift-bow" /><i>♥</i></button>
-              <button className="unwrap-button" type="button" onClick={() => setUnwrapped(true)}>Open your gift</button>
-              <small>Made with Dearly by {sender}</small>
-            </div>
-          ) : (
-            <div className="unwrapped-view format-reveal-view">
-              <span className="reveal-heart" aria-hidden="true">♥</span>
-              <GiftFormatExperience gift={gift} recipient={recipient} sender={sender} message={message} details={details} />
-              <button type="button" onClick={() => setUnwrapped(false)}>Replay opening</button>
-            </div>
-          )}
+          <RecipientExperience
+            recipientName={recipient}
+            senderName={sender}
+            occasion={occasion}
+            giftType={gift}
+            finalMessage={finalMessage}
+            preview
+          >
+            <GiftFormatExperience gift={gift} recipient={recipient} sender={sender} message={message} details={details} />
+          </RecipientExperience>
         </div>
       )}
     </main>
