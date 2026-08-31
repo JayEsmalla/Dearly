@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrandLink } from "@/app/ui/brand";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { RecipientExperience } from "@/app/ui/recipient-experience";
+import { ShareTools } from "@/app/ui/share-tools";
 import {
   backgroundOptions,
   decorationOptions,
@@ -168,7 +169,6 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishedGift, setPublishedGift] = useState<PublishedGift | null>(null);
-  const [copied, setCopied] = useState(false);
   const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState("Loading local draft…");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -299,7 +299,6 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
     setHasPreviewed(false);
     setPublishedGift(null);
     setPublishError(null);
-    setCopied(false);
     if (loadedDraftKey === draftKey) setDraftStatus("Unsaved changes");
   };
 
@@ -473,12 +472,6 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
     }
   };
 
-  const copyShareLink = async () => {
-    if (!publishedGift) return;
-    await navigator.clipboard.writeText(publishedGift.shareUrl);
-    setCopied(true);
-  };
-
   const backParams = new URLSearchParams({ occasion });
   if (recipientType) backParams.set("recipient", recipientType);
   if (gift) backParams.set("gift", gift);
@@ -601,8 +594,9 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
             <section className="share-panel" aria-live="polite">
               <span className="share-success">Gift published</span><h2>Your link is ready.</h2><p>Send this private link directly to {recipient}.</p>
               <input aria-label="Share link" readOnly value={publishedGift.shareUrl} onFocus={(event) => event.currentTarget.select()} />
-              <div className="share-actions"><button type="button" onClick={copyShareLink}>{copied ? "Copied" : "Copy link"}</button><a href={publishedGift.shareUrl} target="_blank" rel="noreferrer">Open gift ↗</a></div>
-              <a className="management-link" href={publishedGift.managementUrl}>Manage this gift privately →</a>
+              <ShareTools url={publishedGift.shareUrl} recipientName={recipient} senderName={sender} />
+              <div className="share-actions"><a href={publishedGift.shareUrl} target="_blank" rel="noreferrer">Open recipient gift ↗</a><a href={publishedGift.managementUrl}>Manage privately →</a></div>
+              <a className="management-link" href={publishedGift.managementUrl}>Private management link</a>
               <small className="management-warning">Keep the management link private. Anyone with it can edit or disable this gift.</small>
             </section>
           )}

@@ -21,7 +21,7 @@ export type Database = {
           published_at: string | null;
           recipient_name: string;
           sender_name: string;
-          status: "draft" | "wrapped" | "published" | "disabled";
+          status: "draft" | "wrapped" | "published" | "opened" | "replied" | "disabled";
           theme: "rose" | "wine" | "sage" | "gold";
           updated_at: string;
         };
@@ -42,7 +42,7 @@ export type Database = {
           published_at?: string | null;
           recipient_name: string;
           sender_name: string;
-          status?: "draft" | "wrapped" | "published" | "disabled";
+          status?: "draft" | "wrapped" | "published" | "opened" | "replied" | "disabled";
           theme: "rose" | "wine" | "sage" | "gold";
           updated_at?: string;
         };

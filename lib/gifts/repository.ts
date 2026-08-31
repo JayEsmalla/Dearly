@@ -53,7 +53,7 @@ function toPublicGift(row: {
 }
 
 function toManagedGift(row: Parameters<typeof toPublicGift>[0] & {
-  status: "draft" | "wrapped" | "published" | "disabled";
+  status: "draft" | "wrapped" | "published" | "opened" | "replied" | "disabled";
   updated_at: string;
   owner_id: string | null;
 }): ManagedGift {
@@ -100,11 +100,35 @@ export async function getPublicGift(publicId: string) {
     .from("gifts")
     .select(publicGiftColumns)
     .eq("public_id", publicId)
-    .eq("status", "published")
+    .in("status", ["published", "opened", "replied"])
     .maybeSingle();
 
   if (error) throw error;
   return data ? toPublicGift(data) : null;
+}
+
+export async function markGiftOpened(publicId: string) {
+  const supabase = createSupabaseAdmin();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("gifts")
+    .update({ status: "opened", opened_at: now })
+    .eq("public_id", publicId)
+    .eq("status", "published")
+    .select("public_id")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (data) return true;
+
+  const existing = await supabase
+    .from("gifts")
+    .select("public_id")
+    .eq("public_id", publicId)
+    .in("status", ["opened", "replied"])
+    .maybeSingle();
+  if (existing.error) throw existing.error;
+  return Boolean(existing.data);
 }
 
 export async function getManagedGift(publicId: string, managementToken: string) {

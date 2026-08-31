@@ -118,6 +118,9 @@ export function RecipientExperience({
   const openGift = () => {
     if (opening) return;
     playChime();
+    if (!preview && persistenceKey) {
+      void fetch(`/api/gifts/${encodeURIComponent(persistenceKey)}/open`, { method: "POST", keepalive: true }).catch(() => undefined);
+    }
     setOpening(true);
     openingTimerRef.current = window.setTimeout(() => {
       setOpening(false);

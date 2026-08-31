@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ManagedGift } from "@/lib/gifts/schema";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
+import { ShareTools } from "@/app/ui/share-tools";
 
 const themeOptions = ["rose", "wine", "sage", "gold"] as const;
 
@@ -17,7 +18,6 @@ export default function GuestGiftManager({ publicId, token }: Props) {
   const [theme, setTheme] = useState<(typeof themeOptions)[number]>("rose");
   const [status, setStatus] = useState(token ? "Loading your private gift…" : "This management link is missing its private token.");
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [accountToken, setAccountToken] = useState<string | null>(null);
 
   const authorizationValue = `Bearer ${token}`;
@@ -112,13 +112,6 @@ export default function GuestGiftManager({ publicId, token }: Props) {
     }
   };
 
-  const copyGiftLink = async () => {
-    const link = `${window.location.origin}/g/${publicId}`;
-    await navigator.clipboard.writeText(link);
-    setCopied(true);
-    setStatus("Public gift link copied.");
-  };
-
   if (!gift) {
     return (
       <main className="guest-manager-shell">
@@ -144,7 +137,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
             <div><dt>Published</dt><dd>{gift.publishedAt ? new Date(gift.publishedAt).toLocaleString() : "Not yet"}</dd></div>
             <div><dt>Last updated</dt><dd>{new Date(gift.updatedAt).toLocaleString()}</dd></div>
           </dl>
-          <button type="button" onClick={copyGiftLink}>{copied ? "Copied public link" : "Copy public link"}</button>
+          {!disabled && <ShareTools url={`/g/${gift.publicId}`} recipientName={gift.recipientName} senderName={gift.senderName} compact />}
           {!disabled && <a href={`/g/${gift.publicId}`} target="_blank" rel="noreferrer">Open recipient view ↗</a>}
           {!gift.ownerId && accountToken && <button className="guest-claim-action" type="button" disabled={busy} onClick={claimGift}>Add to my account</button>}
           {!gift.ownerId && !accountToken && <Link className="guest-signin-link" href="/login">Sign in to save this gift</Link>}

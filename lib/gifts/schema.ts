@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const giftThemeSchema = z.enum(["rose", "wine", "sage", "gold"]);
-export const giftStatusSchema = z.enum(["draft", "wrapped", "published", "disabled"]);
+export const giftStatusSchema = z.enum(["draft", "wrapped", "published", "opened", "replied", "disabled"]);
 
 const giftPresentationSchema = z.object({
   typography: z.enum(["serif", "handwritten", "clean"]),
