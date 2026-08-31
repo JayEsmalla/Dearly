@@ -10,12 +10,22 @@ const themeOptions = ["rose", "wine", "sage", "gold"] as const;
 
 type Props = { publicId: string; token: string };
 
+function toLocalDateTimeInput(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
 export default function GuestGiftManager({ publicId, token }: Props) {
   const [gift, setGift] = useState<ManagedGift | null>(null);
   const [recipientName, setRecipientName] = useState("");
   const [senderName, setSenderName] = useState("");
   const [message, setMessage] = useState("");
   const [theme, setTheme] = useState<(typeof themeOptions)[number]>("rose");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [removePin, setRemovePin] = useState(false);
   const [status, setStatus] = useState(token ? "Loading your private gift…" : "This management link is missing its private token.");
   const [busy, setBusy] = useState(false);
   const [accountToken, setAccountToken] = useState<string | null>(null);
@@ -44,6 +54,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
         setSenderName(result.gift.senderName);
         setMessage(result.gift.message);
         setTheme(result.gift.theme);
+        setExpiresAt(toLocalDateTimeInput(result.gift.expiresAt));
         setStatus("Private management link verified.");
       })
       .catch((error) => {
@@ -59,15 +70,28 @@ export default function GuestGiftManager({ publicId, token }: Props) {
     setBusy(true);
     setStatus("Saving changes…");
     try {
+      const pinUpdate = removePin ? null : newPin ? newPin : undefined;
+      const payload = {
+        recipientName,
+        senderName,
+        message,
+        theme,
+        builderData: gift.builderData,
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+        ...(pinUpdate !== undefined ? { pin: pinUpdate } : {}),
+      };
       const response = await fetch(`/api/gifts/${encodeURIComponent(publicId)}/manage`, {
         method: "PATCH",
         headers: { Authorization: authorizationValue, "Content-Type": "application/json" },
-        body: JSON.stringify({ recipientName, senderName, message, theme, builderData: gift.builderData }),
+        body: JSON.stringify(payload),
       });
       const result = await response.json() as { gift?: ManagedGift; error?: { message?: string } };
       if (!response.ok || !result.gift) throw new Error(result.error?.message ?? "The gift could not be updated.");
       setGift(result.gift);
-      setStatus("Gift changes saved.");
+      setExpiresAt(toLocalDateTimeInput(result.gift.expiresAt));
+      setNewPin("");
+      setRemovePin(false);
+      setStatus("Gift changes and privacy settings saved.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "The gift could not be updated.");
     } finally {
@@ -134,6 +158,8 @@ export default function GuestGiftManager({ publicId, token }: Props) {
           <p>{gift.occasion} · {gift.giftType}</p>
           <dl>
             <div><dt>Status</dt><dd className={`gift-status gift-status--${gift.status}`}>{gift.status}</dd></div>
+            <div><dt>Access</dt><dd>{gift.pinProtected ? "PIN protected" : "Link only"}</dd></div>
+            <div><dt>Expires</dt><dd>{gift.expiresAt ? new Date(gift.expiresAt).toLocaleString() : "Never"}</dd></div>
             <div><dt>Published</dt><dd>{gift.publishedAt ? new Date(gift.publishedAt).toLocaleString() : "Not yet"}</dd></div>
             <div><dt>Last updated</dt><dd>{new Date(gift.updatedAt).toLocaleString()}</dd></div>
           </dl>
@@ -147,15 +173,21 @@ export default function GuestGiftManager({ publicId, token }: Props) {
         <section className="guest-manager-card" aria-labelledby="manage-title">
           <span className="step-label">Edit gift</span>
           <h2 id="manage-title">Keep it personal.</h2>
-          <p>This private link lets you manage the gift without creating an account.</p>
+          <p>This private link lets you manage content, access, and availability without creating an account.</p>
           <div className="guest-manager-fields">
             <label><span>Recipient</span><input value={recipientName} maxLength={80} disabled={disabled} onChange={(event) => setRecipientName(event.target.value)} /></label>
             <label><span>Sender</span><input value={senderName} maxLength={80} disabled={disabled} onChange={(event) => setSenderName(event.target.value)} /></label>
             <label className="guest-manager-message"><span>Message</span><textarea value={message} maxLength={240} rows={5} disabled={disabled} onChange={(event) => setMessage(event.target.value)} /></label>
             <fieldset disabled={disabled}><legend>Color mood</legend><div>{themeOptions.map((option) => <button type="button" key={option} aria-pressed={theme === option} className={theme === option ? "selected" : ""} onClick={() => setTheme(option)}>{option}</button>)}</div></fieldset>
+            <section className="guest-privacy-controls" aria-labelledby="privacy-title">
+              <div><span className="mini-label">Privacy & access</span><h3 id="privacy-title">Control who can open it.</h3></div>
+              <label><span>Expiration</span><input type="datetime-local" value={expiresAt} disabled={disabled} onChange={(event) => setExpiresAt(event.target.value)} /><small>Leave blank to keep the gift available indefinitely.</small></label>
+              <label><span>{gift.pinProtected ? "Replace PIN" : "Add PIN"}</span><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} value={newPin} disabled={disabled || removePin} onChange={(event) => setNewPin(event.target.value.replace(/\D/g, "").slice(0, 8))} placeholder={gift.pinProtected ? "Leave blank to keep current PIN" : "4–8 digits, optional"} /><small>PINs are hashed with scrypt and are never shown again.</small></label>
+              {gift.pinProtected && <label className="guest-remove-pin"><input type="checkbox" checked={removePin} disabled={disabled} onChange={(event) => { setRemovePin(event.target.checked); if (event.target.checked) setNewPin(""); }} /><span>Remove the current PIN when saving</span></label>}
+            </section>
           </div>
           <div className="guest-manager-actions">
-            <button className="button button--primary" type="button" disabled={busy || disabled || !recipientName.trim() || !senderName.trim() || !message.trim()} onClick={saveGift}>{busy ? "Working…" : "Save changes"}</button>
+            <button className="button button--primary" type="button" disabled={busy || disabled || !recipientName.trim() || !senderName.trim() || !message.trim() || Boolean(newPin && newPin.length < 4)} onClick={saveGift}>{busy ? "Working…" : "Save changes"}</button>
             <button className="guest-danger-action" type="button" disabled={busy || disabled} onClick={disableGift}>{disabled ? "Gift disabled" : "Disable public gift"}</button>
           </div>
           <p className="guest-manager-status" role="status" aria-live="polite">{status}</p>

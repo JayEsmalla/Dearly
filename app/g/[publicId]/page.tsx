@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { getGiftAvailability, getPublicGift } from "@/lib/gifts/repository";
+import { giftAccessCookieName, verifyGiftAccessTicket } from "@/lib/gifts/access";
+import { getGiftAccessPolicy, getGiftAvailability, getPublicGift } from "@/lib/gifts/repository";
 import { SupabaseNotConfiguredError } from "@/lib/supabase/server";
+import PinUnlock from "./pin-unlock";
 import RecipientGift from "./recipient-gift";
 
 export const dynamic = "force-dynamic";
@@ -32,8 +35,9 @@ export default async function GiftPage({ params }: GiftPageProps) {
   if (!/^[A-Za-z0-9_-]{10,24}$/.test(publicId)) notFound();
 
   let gift;
+  let accessPolicy;
   try {
-    gift = await getPublicGift(publicId);
+    [gift, accessPolicy] = await Promise.all([getPublicGift(publicId), getGiftAccessPolicy(publicId)]);
   } catch (error) {
     if (error instanceof SupabaseNotConfiguredError) {
       return <UnavailableGift title="This gift service is being prepared." message="Please try this link again after Dearly is connected." />;
@@ -41,7 +45,7 @@ export default async function GiftPage({ params }: GiftPageProps) {
     throw error;
   }
 
-  if (!gift) notFound();
+  if (!gift || !accessPolicy) notFound();
 
   const availability = getGiftAvailability(gift);
   if (availability.state === "expired") {
@@ -50,6 +54,14 @@ export default async function GiftPage({ params }: GiftPageProps) {
 
   if (availability.state === "scheduled") {
     return <UnavailableGift title="Not quite time yet." message={`Come back on ${new Intl.DateTimeFormat("en", { dateStyle: "long", timeStyle: "short" }).format(new Date(availability.opensAt))}.`} />;
+  }
+
+  if (accessPolicy.pinProtected) {
+    const cookieStore = await cookies();
+    const ticket = cookieStore.get(giftAccessCookieName(publicId))?.value;
+    if (!verifyGiftAccessTicket(publicId, accessPolicy.accessVersion, ticket)) {
+      return <PinUnlock publicId={publicId} />;
+    }
   }
 
   return <RecipientGift gift={gift} />;

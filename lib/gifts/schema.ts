@@ -11,6 +11,9 @@ const giftPresentationSchema = z.object({
   effect: z.enum(["none", "hearts", "snow", "confetti", "sparkles", "particles", "fade"]),
 });
 
+const giftPinSchema = z.string().regex(/^\d{4,8}$/, "PINs contain 4 to 8 numbers.");
+const optionalExpirySchema = z.string().datetime({ offset: true }).nullable().optional();
+
 export const publishedBuilderDataSchema = z.object({
   finalMessage: z.string().max(180).default(""),
   signature: z.string().max(48).default("Always,"),
@@ -26,6 +29,12 @@ export const publishGiftInputSchema = z.object({
   message: z.string().trim().min(1).max(240),
   theme: giftThemeSchema,
   builderData: publishedBuilderDataSchema.optional(),
+  pin: giftPinSchema.optional(),
+  expiresAt: optionalExpirySchema,
+}).superRefine((value, context) => {
+  if (value.expiresAt && new Date(value.expiresAt).getTime() <= Date.now()) {
+    context.addIssue({ code: "custom", path: ["expiresAt"], message: "Expiration must be in the future." });
+  }
 });
 
 export const manageGiftUpdateSchema = z.object({
@@ -34,6 +43,12 @@ export const manageGiftUpdateSchema = z.object({
   message: z.string().trim().min(1).max(240),
   theme: giftThemeSchema,
   builderData: publishedBuilderDataSchema.optional(),
+  pin: z.union([giftPinSchema, z.null()]).optional(),
+  expiresAt: optionalExpirySchema,
+}).superRefine((value, context) => {
+  if (value.expiresAt && new Date(value.expiresAt).getTime() <= Date.now()) {
+    context.addIssue({ code: "custom", path: ["expiresAt"], message: "Expiration must be in the future." });
+  }
 });
 
 export const publicGiftSchema = z.object({
@@ -54,6 +69,7 @@ export const managedGiftSchema = publicGiftSchema.extend({
   status: giftStatusSchema,
   updatedAt: z.string(),
   ownerId: z.string().uuid().nullable(),
+  pinProtected: z.boolean(),
 });
 
 export type PublishGiftInput = z.infer<typeof publishGiftInputSchema>;

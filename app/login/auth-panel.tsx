@@ -46,20 +46,6 @@ export default function AuthPanel() {
     }
   };
 
-  const googleSignIn = async () => {
-    const supabase = getSupabaseBrowser();
-    if (!supabase) {
-      setStatus("Account services are not configured in this environment yet.");
-      return;
-    }
-    setBusy(true);
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/auth/callback` } });
-    if (error) {
-      setStatus(error.message);
-      setBusy(false);
-    }
-  };
-
   return (
     <section className="auth-card" aria-labelledby="auth-title">
       <div className="auth-mode-tabs" role="tablist" aria-label="Account action">
@@ -73,10 +59,8 @@ export default function AuthPanel() {
         <label><span>Password</span><input type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" /></label>
         <button className="button button--primary" type="submit" disabled={busy}>{busy ? "Working…" : mode === "signin" ? "Sign in" : "Create account"}</button>
       </form>
-      <div className="auth-divider"><span>or</span></div>
-      <button className="auth-google" type="button" disabled={busy} onClick={googleSignIn}><span aria-hidden="true">G</span> Continue with Google</button>
       {status && <p className="auth-status" role="status" aria-live="polite">{status}</p>}
-      <small>Accounts are optional. You can always continue creating as a guest.</small>
+      <small>Email and password are the only account sign-in method. Accounts remain optional for gift creation.</small>
     </section>
   );
 }

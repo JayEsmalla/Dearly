@@ -1,11 +1,17 @@
 import "server-only";
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 import { publishedBuilderDataSchema, type ManageGiftUpdate, type ManagedGift, type PublishGiftInput, type PublicGift } from "./schema";
 
 const publicGiftColumns = "public_id, occasion, gift_type, recipient_name, sender_name, message, theme, builder_data, opens_at, expires_at, published_at";
-const managedGiftColumns = `${publicGiftColumns}, status, updated_at, owner_id`;
+const managedGiftColumns = `${publicGiftColumns}, status, updated_at, owner_id, pin_hash, access_version`;
+const publicStatuses = ["published", "opened", "replied"] as const;
+const pinAttemptLimit = 5;
+const pinAttemptWindowMs = 10 * 60 * 1000;
+
+type GiftUpdate = Database["public"]["Tables"]["gifts"]["Update"];
 
 function createPublicId() {
   return randomBytes(12).toString("base64url");
@@ -17,6 +23,28 @@ function createManagementToken() {
 
 function hashManagementToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+function derivePinHash(pin: string, salt: string) {
+  return new Promise<Buffer>((resolve, reject) => {
+    scrypt(pin, salt, 32, (error, derivedKey) => {
+      if (error) reject(error);
+      else resolve(derivedKey);
+    });
+  });
+}
+
+async function createPinProtection(pin: string) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = (await derivePinHash(pin, salt)).toString("hex");
+  return { hash, salt };
+}
+
+async function matchesPin(pin: string, salt: string, storedHash: string) {
+  if (!/^[a-f0-9]{64}$/i.test(storedHash)) return false;
+  const candidate = await derivePinHash(pin, salt);
+  const stored = Buffer.from(storedHash, "hex");
+  return candidate.length === stored.length && timingSafeEqual(candidate, stored);
 }
 
 function normalizeBuilderData(value: unknown) {
@@ -56,12 +84,15 @@ function toManagedGift(row: Parameters<typeof toPublicGift>[0] & {
   status: "draft" | "wrapped" | "published" | "opened" | "replied" | "disabled";
   updated_at: string;
   owner_id: string | null;
+  pin_hash: string | null;
+  access_version: number;
 }): ManagedGift {
   return {
     ...toPublicGift(row),
     status: row.status,
     updatedAt: row.updated_at,
     ownerId: row.owner_id,
+    pinProtected: Boolean(row.pin_hash),
   };
 }
 
@@ -69,6 +100,7 @@ export async function publishGift(input: PublishGiftInput, ownerId: string | nul
   const supabase = createSupabaseAdmin();
   const publicId = createPublicId();
   const managementToken = createManagementToken();
+  const protection = input.pin ? await createPinProtection(input.pin) : null;
 
   const { data, error } = await supabase
     .from("gifts")
@@ -86,6 +118,9 @@ export async function publishGift(input: PublishGiftInput, ownerId: string | nul
       builder_data: input.builderData ?? {},
       owner_id: ownerId,
       claimed_at: ownerId ? new Date().toISOString() : null,
+      expires_at: input.expiresAt ?? null,
+      pin_hash: protection?.hash ?? null,
+      pin_salt: protection?.salt ?? null,
     })
     .select(publicGiftColumns)
     .single();
@@ -100,11 +135,64 @@ export async function getPublicGift(publicId: string) {
     .from("gifts")
     .select(publicGiftColumns)
     .eq("public_id", publicId)
-    .in("status", ["published", "opened", "replied"])
+    .in("status", [...publicStatuses])
     .maybeSingle();
 
   if (error) throw error;
   return data ? toPublicGift(data) : null;
+}
+
+export async function getGiftAccessPolicy(publicId: string) {
+  const supabase = createSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("gifts")
+    .select("pin_hash, access_version")
+    .eq("public_id", publicId)
+    .in("status", [...publicStatuses])
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? { pinProtected: Boolean(data.pin_hash), accessVersion: data.access_version } : null;
+}
+
+export async function verifyGiftPin(publicId: string, pin: string, clientHash: string) {
+  const supabase = createSupabaseAdmin();
+  const { data: gift, error: giftError } = await supabase
+    .from("gifts")
+    .select("id, pin_hash, pin_salt, access_version, expires_at")
+    .eq("public_id", publicId)
+    .in("status", [...publicStatuses])
+    .maybeSingle();
+
+  if (giftError) throw giftError;
+  if (!gift || (gift.expires_at && new Date(gift.expires_at).getTime() <= Date.now())) return { state: "invalid" as const };
+  if (!gift.pin_hash || !gift.pin_salt) return { state: "valid" as const, accessVersion: gift.access_version };
+
+  const windowStart = new Date(Date.now() - pinAttemptWindowMs).toISOString();
+  const { count, error: attemptError } = await supabase
+    .from("gift_access_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("gift_id", gift.id)
+    .eq("client_hash", clientHash)
+    .gte("attempted_at", windowStart);
+
+  if (attemptError) throw attemptError;
+  if ((count ?? 0) >= pinAttemptLimit) return { state: "limited" as const };
+
+  const valid = await matchesPin(pin, gift.pin_salt, gift.pin_hash);
+  if (!valid) {
+    const { error } = await supabase.from("gift_access_attempts").insert({ gift_id: gift.id, client_hash: clientHash });
+    if (error) throw error;
+    return { state: "invalid" as const };
+  }
+
+  const { error: cleanupError } = await supabase
+    .from("gift_access_attempts")
+    .delete()
+    .eq("gift_id", gift.id)
+    .eq("client_hash", clientHash);
+  if (cleanupError) throw cleanupError;
+  return { state: "valid" as const, accessVersion: gift.access_version };
 }
 
 export async function markGiftOpened(publicId: string) {
@@ -146,18 +234,43 @@ export async function getManagedGift(publicId: string, managementToken: string) 
 
 export async function updateManagedGift(publicId: string, managementToken: string, input: ManageGiftUpdate) {
   const supabase = createSupabaseAdmin();
+  const tokenHash = hashManagementToken(managementToken);
+  const existing = await supabase
+    .from("gifts")
+    .select("id, access_version")
+    .eq("public_id", publicId)
+    .eq("management_token_hash", tokenHash)
+    .neq("status", "disabled")
+    .maybeSingle();
+
+  if (existing.error) throw existing.error;
+  if (!existing.data) return null;
+
+  const updates: GiftUpdate = {
+    recipient_name: input.recipientName,
+    sender_name: input.senderName,
+    message: input.message,
+    theme: input.theme,
+    builder_data: input.builderData ?? {},
+  };
+
+  if (input.expiresAt !== undefined) updates.expires_at = input.expiresAt;
+  if (input.pin !== undefined) {
+    if (input.pin === null) {
+      updates.pin_hash = null;
+      updates.pin_salt = null;
+    } else {
+      const protection = await createPinProtection(input.pin);
+      updates.pin_hash = protection.hash;
+      updates.pin_salt = protection.salt;
+    }
+    updates.access_version = existing.data.access_version + 1;
+  }
+
   const { data, error } = await supabase
     .from("gifts")
-    .update({
-      recipient_name: input.recipientName,
-      sender_name: input.senderName,
-      message: input.message,
-      theme: input.theme,
-      builder_data: input.builderData ?? {},
-    })
-    .eq("public_id", publicId)
-    .eq("management_token_hash", hashManagementToken(managementToken))
-    .neq("status", "disabled")
+    .update(updates)
+    .eq("id", existing.data.id)
     .select(managedGiftColumns)
     .maybeSingle();
 

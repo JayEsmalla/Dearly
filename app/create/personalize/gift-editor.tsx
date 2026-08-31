@@ -169,6 +169,8 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishedGift, setPublishedGift] = useState<PublishedGift | null>(null);
+  const [giftPin, setGiftPin] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
   const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState("Loading local draft…");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -432,6 +434,8 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
           message,
           theme: theme.name.toLowerCase(),
           builderData: { finalMessage, signature, details, presentation },
+          pin: giftPin || undefined,
+          expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         }),
       });
       const result = await response.json() as {
@@ -488,7 +492,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
       </header>
 
       <nav className="editor-mobile-tabs" aria-label="Gift builder sections">
-        <a href="#builder-content">Content</a><a href="#builder-design">Design</a><a href="#builder-effects">Effects</a><a href="#builder-preview">Preview</a>
+        <a href="#builder-content">Content</a><a href="#builder-design">Design</a><a href="#builder-effects">Effects</a><a href="#builder-delivery">Delivery</a><a href="#builder-preview">Preview</a>
       </nav>
 
       <div className="editor-workspace">
@@ -581,12 +585,22 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
             </div>
           </section>
 
+          <section className="builder-section" id="builder-delivery" aria-labelledby="builder-delivery-title">
+            <div className="builder-section-heading"><span>04</span><h2 id="builder-delivery-title">Delivery & privacy</h2></div>
+            <p className="builder-section-copy">Every gift uses a randomized link. Add a PIN or expiration only when the moment needs extra privacy.</p>
+            <div className="delivery-privacy-card">
+              <div className="delivery-link-only"><span aria-hidden="true">↗</span><div><strong>Link-only access</strong><small>Not indexed or publicly listed by Dearly.</small></div></div>
+              <label><span>Optional recipient PIN <small>4–8 digits</small></span><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} value={giftPin} onChange={(event) => { invalidatePublication(); setGiftPin(event.target.value.replace(/\D/g, "").slice(0, 8)); }} placeholder="Leave blank for no PIN" /><small className="delivery-field-note">For privacy, the PIN is not saved in the local draft. Share it separately from the gift link.</small></label>
+              <label><span>Optional expiration</span><input type="datetime-local" value={expiresAt} onChange={(event) => { invalidatePublication(); setExpiresAt(event.target.value); }} /><small className="delivery-field-note">After this time, the recipient link stops opening the gift.</small></label>
+            </div>
+          </section>
+
           {!publishedGift ? (
             <>
               <button ref={previewTriggerRef} className="preview-button" type="button" onClick={openPreview} disabled={!recipient.trim() || !sender.trim() || !message.trim() || !finalMessage.trim()}>
                 Wrap & preview <span aria-hidden="true">→</span>
               </button>
-              <button className="publish-button" type="button" onClick={publishCurrentGift} disabled={!hasPreviewed || publishing || !recipient.trim() || !sender.trim() || !message.trim()}>{publishing ? "Publishing…" : hasPreviewed ? "Publish gift" : "Preview before publishing"}</button>
+              <button className="publish-button" type="button" onClick={publishCurrentGift} disabled={!hasPreviewed || publishing || !recipient.trim() || !sender.trim() || !message.trim() || Boolean(giftPin && giftPin.length < 4)}>{publishing ? "Publishing…" : hasPreviewed ? "Publish gift" : "Preview before publishing"}</button>
               {publishError && <p className="publish-error" role="alert">{publishError}</p>}
               <p className="local-note"><span aria-hidden="true">i</span> Guest publishing uses a public recipient link and a separate private management link.</p>
             </>
@@ -597,6 +611,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
               <ShareTools url={publishedGift.shareUrl} recipientName={recipient} senderName={sender} />
               <div className="share-actions"><a href={publishedGift.shareUrl} target="_blank" rel="noreferrer">Open recipient gift ↗</a><a href={publishedGift.managementUrl}>Manage privately →</a></div>
               <a className="management-link" href={publishedGift.managementUrl}>Private management link</a>
+              {giftPin && <small className="management-warning">PIN protection is on. Share the PIN separately from the recipient link.</small>}
               <small className="management-warning">Keep the management link private. Anyone with it can edit or disable this gift.</small>
             </section>
           )}
