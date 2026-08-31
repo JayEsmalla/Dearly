@@ -1,5 +1,7 @@
 "use client";
 
+import { defaultPresentation, type GiftPhoto, type GiftPresentation } from "./builder-config";
+
 export type GiftFormatDetails = {
   headline: string;
   flower: string;
@@ -34,6 +36,10 @@ type SharedProps = {
   sender: string;
   message: string;
   details: GiftFormatDetails;
+  signature?: string;
+  photos?: GiftPhoto[];
+  presentation?: GiftPresentation;
+  finalMessage?: string;
   compact?: boolean;
 };
 
@@ -106,28 +112,78 @@ export function GiftFormatFields({
   return null;
 }
 
-export function GiftFormatExperience({ gift, recipient, sender, message, details, compact = false }: SharedProps) {
+function PhotoStrip({ photos, compact = false }: { photos: GiftPhoto[]; compact?: boolean }) {
+  if (photos.length === 0) return null;
+  return (
+    <div className={`gift-photo-strip${compact ? " is-compact" : ""}`} aria-label="Attached photos">
+      {photos.slice(0, compact ? 2 : 3).map((photo) => (
+        <figure key={photo.id}>
+          <div className="gift-photo-image" role="img" aria-label={photo.caption || photo.name} style={{ backgroundImage: `url(${photo.dataUrl})` }} />
+          {photo.caption && <figcaption>{photo.caption}</figcaption>}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+function EffectLayer({ effect }: { effect: GiftPresentation["effect"] }) {
+  if (effect === "none") return null;
+  return (
+    <div className={`gift-effect-layer gift-effect--${effect}`} aria-hidden="true">
+      {Array.from({ length: 10 }, (_, index) => <i key={index} />)}
+    </div>
+  );
+}
+
+function experienceClass(base: string, compact: boolean, presentation: GiftPresentation) {
+  return [
+    "format-experience",
+    base,
+    compact ? "is-compact" : "",
+    `gift-typography--${presentation.typography}`,
+    `gift-background--${presentation.background}`,
+    `gift-layout--${presentation.layout}`,
+    `gift-decoration--${presentation.decoration}`,
+    `gift-motion--${presentation.effect}`,
+  ].filter(Boolean).join(" ");
+}
+
+export function GiftFormatExperience({
+  gift,
+  recipient,
+  sender,
+  message,
+  details,
+  signature = "Always,",
+  photos = [],
+  presentation = defaultPresentation,
+  compact = false,
+}: SharedProps) {
   const safeRecipient = recipient || "someone special";
   const safeSender = sender || "you";
   const safeMessage = message || "Your message will appear here.";
+  const signedBy = `${signature.trim() || "Always,"} ${safeSender}`;
 
   if (gift === "Greeting Card") {
     return (
-      <article className={`format-experience greeting-card${compact ? " is-compact" : ""}`}>
+      <article className={experienceClass("greeting-card", compact, presentation)}>
+        <EffectLayer effect={presentation.effect} />
         <div className="card-front"><span>For {safeRecipient}</span><strong>{details.headline || "A little celebration for you"}</strong><i aria-hidden="true">♡</i></div>
-        <div className="card-inside"><p>{safeMessage}</p><small>With love, {safeSender}</small></div>
+        <div className="card-inside"><p>{safeMessage}</p><PhotoStrip photos={photos} compact /><small>{signedBy}</small></div>
       </article>
     );
   }
 
   if (gift === "Virtual Flowers") {
     return (
-      <article className={`format-experience flower-gift${compact ? " is-compact" : ""}`}>
+      <article className={experienceClass("flower-gift", compact, presentation)}>
+        <EffectLayer effect={presentation.effect} />
         <div className="bouquet" aria-hidden="true"><i>✿</i><i>❀</i><i>✿</i><i>❁</i><i>✿</i><span /></div>
         <span className="format-kicker">A bouquet of {details.flower.toLowerCase()}</span>
         <h3>For {safeRecipient}</h3>
         <p>{safeMessage}</p>
-        <small>Picked with love by {safeSender}</small>
+        <PhotoStrip photos={photos} compact />
+        <small>{signedBy}</small>
       </article>
     );
   }
@@ -135,10 +191,19 @@ export function GiftFormatExperience({ gift, recipient, sender, message, details
   if (gift === "Memory Album") {
     const memories = [details.memoryOne, details.memoryTwo, details.memoryThree];
     return (
-      <article className={`format-experience memory-album${compact ? " is-compact" : ""}`}>
+      <article className={experienceClass("memory-album", compact, presentation)}>
+        <EffectLayer effect={presentation.effect} />
         <header><span>Our little album</span><h3>{safeRecipient} &amp; {safeSender}</h3></header>
         <div className="memory-pages">
-          {memories.map((memory, index) => <div className="memory-photo" key={index}><span aria-hidden="true">{index + 1}</span><p>{memory}</p></div>)}
+          {memories.map((memory, index) => {
+            const photo = photos[index];
+            return (
+              <div className="memory-photo" key={index}>
+                {photo ? <div className="memory-photo-image" role="img" aria-label={photo.caption || photo.name} style={{ backgroundImage: `url(${photo.dataUrl})` }} /> : <span aria-hidden="true">{index + 1}</span>}
+                <p>{photo?.caption || memory}</p>
+              </div>
+            );
+          })}
         </div>
         <blockquote>{safeMessage}</blockquote>
       </article>
@@ -148,13 +213,15 @@ export function GiftFormatExperience({ gift, recipient, sender, message, details
   if (gift === "Gift Box") {
     const surprises = [details.surpriseOne, details.surpriseTwo, details.surpriseThree];
     return (
-      <article className={`format-experience box-experience${compact ? " is-compact" : ""}`}>
+      <article className={experienceClass("box-experience", compact, presentation)}>
+        <EffectLayer effect={presentation.effect} />
         <span className="format-kicker">Three little things for {safeRecipient}</span>
         <div className="box-items">
           {surprises.map((surprise, index) => <div key={index}><i aria-hidden="true">{["✉", "♡", "✦"][index]}</i><strong>{surprise}</strong></div>)}
         </div>
+        <PhotoStrip photos={photos} compact />
         <p>{safeMessage}</p>
-        <small>Wrapped by {safeSender}</small>
+        <small>{signedBy}</small>
       </article>
     );
   }
@@ -162,21 +229,24 @@ export function GiftFormatExperience({ gift, recipient, sender, message, details
   if (gift === "Wish Jar") {
     const wishes = [details.wishOne, details.wishTwo, details.wishThree];
     return (
-      <article className={`format-experience wish-jar${compact ? " is-compact" : ""}`}>
+      <article className={experienceClass("wish-jar", compact, presentation)}>
+        <EffectLayer effect={presentation.effect} />
         <div className="jar-visual" aria-hidden="true"><span /><i>♡</i></div>
         <span className="format-kicker">A jar of wishes for {safeRecipient}</span>
         <div className="wish-notes">{wishes.map((wish, index) => <p key={index}>{wish}</p>)}</div>
-        <small>{safeMessage} — {safeSender}</small>
+        <small>{safeMessage} — {signedBy}</small>
       </article>
     );
   }
 
   return (
-    <article className={`format-experience digital-letter${compact ? " is-compact" : ""}`}>
+    <article className={experienceClass("digital-letter", compact, presentation)}>
+      <EffectLayer effect={presentation.effect} />
       <p className="editable-to">Dear {safeRecipient},</p>
       <span className="editable-flower" aria-hidden="true">✿</span>
       <blockquote>“{safeMessage}”</blockquote>
-      <p className="editable-from">Always, {safeSender}</p>
+      <PhotoStrip photos={photos} compact />
+      <p className="editable-from">{signedBy}</p>
     </article>
   );
 }
