@@ -69,8 +69,8 @@ type EditorSnapshot = {
 };
 
 const detailKeys: (keyof GiftFormatDetails)[] = [
-  "headline", "flower", "memoryOne", "memoryTwo", "memoryThree",
-  "surpriseOne", "surpriseTwo", "surpriseThree", "wishOne", "wishTwo", "wishThree",
+  "headline", "flower", "flowerStyle", "memoryOne", "memoryTwo", "memoryThree", "albumMode",
+  "surpriseOne", "surpriseTwo", "surpriseThree", "wishOne", "wishTwo", "wishThree", "wishOrder",
 ];
 
 const getDraftKey = (occasion: string, gift: string, templateId?: string) => {
