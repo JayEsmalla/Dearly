@@ -12,7 +12,7 @@ const giftPresentationSchema = z.object({
 });
 
 const giftPinSchema = z.string().regex(/^\d{4,8}$/, "PINs contain 4 to 8 numbers.");
-const optionalExpirySchema = z.string().datetime({ offset: true }).nullable().optional();
+const optionalDateTimeSchema = z.string().datetime({ offset: true }).nullable().optional();
 
 export const publishedBuilderDataSchema = z.object({
   finalMessage: z.string().max(180).default(""),
@@ -30,11 +30,15 @@ export const publishGiftInputSchema = z.object({
   theme: giftThemeSchema,
   builderData: publishedBuilderDataSchema.optional(),
   pin: giftPinSchema.optional(),
-  expiresAt: optionalExpirySchema,
+  opensAt: optionalDateTimeSchema,
+  expiresAt: optionalDateTimeSchema,
 }).superRefine((value, context) => {
-  if (value.expiresAt && new Date(value.expiresAt).getTime() <= Date.now()) {
-    context.addIssue({ code: "custom", path: ["expiresAt"], message: "Expiration must be in the future." });
-  }
+  const now = Date.now();
+  const opensAt = value.opensAt ? new Date(value.opensAt).getTime() : null;
+  const expiresAt = value.expiresAt ? new Date(value.expiresAt).getTime() : null;
+  if (opensAt !== null && opensAt <= now) context.addIssue({ code: "custom", path: ["opensAt"], message: "Scheduled opening must be in the future." });
+  if (expiresAt !== null && expiresAt <= now) context.addIssue({ code: "custom", path: ["expiresAt"], message: "Expiration must be in the future." });
+  if (opensAt !== null && expiresAt !== null && opensAt >= expiresAt) context.addIssue({ code: "custom", path: ["expiresAt"], message: "Expiration must be after the scheduled opening." });
 });
 
 export const manageGiftUpdateSchema = z.object({
@@ -44,11 +48,12 @@ export const manageGiftUpdateSchema = z.object({
   theme: giftThemeSchema,
   builderData: publishedBuilderDataSchema.optional(),
   pin: z.union([giftPinSchema, z.null()]).optional(),
-  expiresAt: optionalExpirySchema,
+  opensAt: optionalDateTimeSchema,
+  expiresAt: optionalDateTimeSchema,
 }).superRefine((value, context) => {
-  if (value.expiresAt && new Date(value.expiresAt).getTime() <= Date.now()) {
-    context.addIssue({ code: "custom", path: ["expiresAt"], message: "Expiration must be in the future." });
-  }
+  const opensAt = value.opensAt ? new Date(value.opensAt).getTime() : null;
+  const expiresAt = value.expiresAt ? new Date(value.expiresAt).getTime() : null;
+  if (opensAt !== null && expiresAt !== null && opensAt >= expiresAt) context.addIssue({ code: "custom", path: ["expiresAt"], message: "Expiration must be after the scheduled opening." });
 });
 
 export const publicGiftSchema = z.object({

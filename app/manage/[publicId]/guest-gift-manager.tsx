@@ -23,6 +23,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
   const [senderName, setSenderName] = useState("");
   const [message, setMessage] = useState("");
   const [theme, setTheme] = useState<(typeof themeOptions)[number]>("rose");
+  const [opensAt, setOpensAt] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [newPin, setNewPin] = useState("");
   const [removePin, setRemovePin] = useState(false);
@@ -54,6 +55,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
         setSenderName(result.gift.senderName);
         setMessage(result.gift.message);
         setTheme(result.gift.theme);
+        setOpensAt(toLocalDateTimeInput(result.gift.opensAt));
         setExpiresAt(toLocalDateTimeInput(result.gift.expiresAt));
         setStatus("Private management link verified.");
       })
@@ -77,6 +79,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
         message,
         theme,
         builderData: gift.builderData,
+        opensAt: opensAt ? new Date(opensAt).toISOString() : null,
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         ...(pinUpdate !== undefined ? { pin: pinUpdate } : {}),
       };
@@ -88,6 +91,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
       const result = await response.json() as { gift?: ManagedGift; error?: { message?: string } };
       if (!response.ok || !result.gift) throw new Error(result.error?.message ?? "The gift could not be updated.");
       setGift(result.gift);
+      setOpensAt(toLocalDateTimeInput(result.gift.opensAt));
       setExpiresAt(toLocalDateTimeInput(result.gift.expiresAt));
       setNewPin("");
       setRemovePin(false);
@@ -159,6 +163,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
           <dl>
             <div><dt>Status</dt><dd className={`gift-status gift-status--${gift.status}`}>{gift.status}</dd></div>
             <div><dt>Access</dt><dd>{gift.pinProtected ? "PIN protected" : "Link only"}</dd></div>
+            <div><dt>Opens</dt><dd>{gift.opensAt ? new Date(gift.opensAt).toLocaleString() : "Immediately"}</dd></div>
             <div><dt>Expires</dt><dd>{gift.expiresAt ? new Date(gift.expiresAt).toLocaleString() : "Never"}</dd></div>
             <div><dt>Published</dt><dd>{gift.publishedAt ? new Date(gift.publishedAt).toLocaleString() : "Not yet"}</dd></div>
             <div><dt>Last updated</dt><dd>{new Date(gift.updatedAt).toLocaleString()}</dd></div>
@@ -181,13 +186,14 @@ export default function GuestGiftManager({ publicId, token }: Props) {
             <fieldset disabled={disabled}><legend>Color mood</legend><div>{themeOptions.map((option) => <button type="button" key={option} aria-pressed={theme === option} className={theme === option ? "selected" : ""} onClick={() => setTheme(option)}>{option}</button>)}</div></fieldset>
             <section className="guest-privacy-controls" aria-labelledby="privacy-title">
               <div><span className="mini-label">Privacy & access</span><h3 id="privacy-title">Control who can open it.</h3></div>
+              <label><span>Scheduled opening</span><input type="datetime-local" value={opensAt} disabled={disabled} onChange={(event) => setOpensAt(event.target.value)} /><small>Leave blank to make the gift available immediately.</small></label>
               <label><span>Expiration</span><input type="datetime-local" value={expiresAt} disabled={disabled} onChange={(event) => setExpiresAt(event.target.value)} /><small>Leave blank to keep the gift available indefinitely.</small></label>
               <label><span>{gift.pinProtected ? "Replace PIN" : "Add PIN"}</span><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} value={newPin} disabled={disabled || removePin} onChange={(event) => setNewPin(event.target.value.replace(/\D/g, "").slice(0, 8))} placeholder={gift.pinProtected ? "Leave blank to keep current PIN" : "4–8 digits, optional"} /><small>PINs are hashed with scrypt and are never shown again.</small></label>
               {gift.pinProtected && <label className="guest-remove-pin"><input type="checkbox" checked={removePin} disabled={disabled} onChange={(event) => { setRemovePin(event.target.checked); if (event.target.checked) setNewPin(""); }} /><span>Remove the current PIN when saving</span></label>}
             </section>
           </div>
           <div className="guest-manager-actions">
-            <button className="button button--primary" type="button" disabled={busy || disabled || !recipientName.trim() || !senderName.trim() || !message.trim() || Boolean(newPin && newPin.length < 4)} onClick={saveGift}>{busy ? "Working…" : "Save changes"}</button>
+            <button className="button button--primary" type="button" disabled={busy || disabled || !recipientName.trim() || !senderName.trim() || !message.trim() || Boolean(newPin && newPin.length < 4) || Boolean(opensAt && expiresAt && new Date(opensAt).getTime() >= new Date(expiresAt).getTime())} onClick={saveGift}>{busy ? "Working…" : "Save changes"}</button>
             <button className="guest-danger-action" type="button" disabled={busy || disabled} onClick={disableGift}>{disabled ? "Gift disabled" : "Disable public gift"}</button>
           </div>
           <p className="guest-manager-status" role="status" aria-live="polite">{status}</p>

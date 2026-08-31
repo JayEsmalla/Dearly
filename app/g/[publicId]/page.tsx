@@ -5,6 +5,7 @@ import { giftAccessCookieName, verifyGiftAccessTicket } from "@/lib/gifts/access
 import { getGiftAccessPolicy, getGiftAvailability, getPublicGift } from "@/lib/gifts/repository";
 import { SupabaseNotConfiguredError } from "@/lib/supabase/server";
 import PinUnlock from "./pin-unlock";
+import ScheduledGift from "./scheduled-gift";
 import RecipientGift from "./recipient-gift";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,7 @@ export default async function GiftPage({ params }: GiftPageProps) {
   }
 
   if (availability.state === "scheduled") {
-    return <UnavailableGift title="Not quite time yet." message={`Come back on ${new Intl.DateTimeFormat("en", { dateStyle: "long", timeStyle: "short" }).format(new Date(availability.opensAt))}.`} />;
+    return <ScheduledGift opensAt={availability.opensAt} />;
   }
 
   if (accessPolicy.pinProtected) {

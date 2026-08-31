@@ -170,6 +170,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishedGift, setPublishedGift] = useState<PublishedGift | null>(null);
   const [giftPin, setGiftPin] = useState("");
+  const [opensAt, setOpensAt] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState("Loading local draft…");
@@ -417,6 +418,20 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
   };
 
   const publishCurrentGift = async () => {
+    const now = Date.now();
+    if (opensAt && new Date(opensAt).getTime() <= now) {
+      setPublishError("Choose a scheduled opening time in the future, or leave it blank to open immediately.");
+      return;
+    }
+    if (expiresAt && new Date(expiresAt).getTime() <= now) {
+      setPublishError("Choose an expiration time in the future, or leave it blank for no expiration.");
+      return;
+    }
+    if (opensAt && expiresAt && new Date(opensAt).getTime() >= new Date(expiresAt).getTime()) {
+      setPublishError("Expiration must be after the scheduled opening.");
+      return;
+    }
+
     setPublishing(true);
     setPublishError(null);
 
@@ -435,6 +450,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
           theme: theme.name.toLowerCase(),
           builderData: { finalMessage, signature, details, presentation },
           pin: giftPin || undefined,
+          opensAt: opensAt ? new Date(opensAt).toISOString() : null,
           expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         }),
       });
@@ -591,6 +607,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
             <div className="delivery-privacy-card">
               <div className="delivery-link-only"><span aria-hidden="true">↗</span><div><strong>Link-only access</strong><small>Not indexed or publicly listed by Dearly.</small></div></div>
               <label><span>Optional recipient PIN <small>4–8 digits</small></span><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} value={giftPin} onChange={(event) => { invalidatePublication(); setGiftPin(event.target.value.replace(/\D/g, "").slice(0, 8)); }} placeholder="Leave blank for no PIN" /><small className="delivery-field-note">For privacy, the PIN is not saved in the local draft. Share it separately from the gift link.</small></label>
+              <label><span>Scheduled opening</span><input type="datetime-local" value={opensAt} onChange={(event) => { invalidatePublication(); setOpensAt(event.target.value); }} /><small className="delivery-field-note">Leave blank to open immediately. Times are converted to an absolute instant when published.</small></label>
               <label><span>Optional expiration</span><input type="datetime-local" value={expiresAt} onChange={(event) => { invalidatePublication(); setExpiresAt(event.target.value); }} /><small className="delivery-field-note">After this time, the recipient link stops opening the gift.</small></label>
             </div>
           </section>
@@ -600,7 +617,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
               <button ref={previewTriggerRef} className="preview-button" type="button" onClick={openPreview} disabled={!recipient.trim() || !sender.trim() || !message.trim() || !finalMessage.trim()}>
                 Wrap & preview <span aria-hidden="true">→</span>
               </button>
-              <button className="publish-button" type="button" onClick={publishCurrentGift} disabled={!hasPreviewed || publishing || !recipient.trim() || !sender.trim() || !message.trim() || Boolean(giftPin && giftPin.length < 4)}>{publishing ? "Publishing…" : hasPreviewed ? "Publish gift" : "Preview before publishing"}</button>
+              <button className="publish-button" type="button" onClick={publishCurrentGift} disabled={!hasPreviewed || publishing || !recipient.trim() || !sender.trim() || !message.trim() || Boolean(giftPin && giftPin.length < 4) || Boolean(opensAt && expiresAt && new Date(opensAt).getTime() >= new Date(expiresAt).getTime())}>{publishing ? "Publishing…" : hasPreviewed ? "Publish gift" : "Preview before publishing"}</button>
               {publishError && <p className="publish-error" role="alert">{publishError}</p>}
               <p className="local-note"><span aria-hidden="true">i</span> Guest publishing uses a public recipient link and a separate private management link.</p>
             </>

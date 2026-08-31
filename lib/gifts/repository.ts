@@ -118,6 +118,7 @@ export async function publishGift(input: PublishGiftInput, ownerId: string | nul
       builder_data: input.builderData ?? {},
       owner_id: ownerId,
       claimed_at: ownerId ? new Date().toISOString() : null,
+      opens_at: input.opensAt ?? null,
       expires_at: input.expiresAt ?? null,
       pin_hash: protection?.hash ?? null,
       pin_salt: protection?.salt ?? null,
@@ -254,6 +255,7 @@ export async function updateManagedGift(publicId: string, managementToken: strin
     builder_data: input.builderData ?? {},
   };
 
+  if (input.opensAt !== undefined) updates.opens_at = input.opensAt;
   if (input.expiresAt !== undefined) updates.expires_at = input.expiresAt;
   if (input.pin !== undefined) {
     if (input.pin === null) {
