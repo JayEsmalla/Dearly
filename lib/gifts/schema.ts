@@ -70,6 +70,17 @@ export const publicGiftSchema = z.object({
   publishedAt: z.string().nullable(),
 });
 
+export const recipientReactionSchema = z.enum(["This made me smile.", "I love this.", "This is so thoughtful.", "You made my day."]);
+export const recipientResponseInputSchema = z.object({
+  reaction: recipientReactionSchema.nullable().optional(),
+  reply: z.string().trim().max(500).nullable().optional(),
+}).refine((value) => value.reaction !== undefined || value.reply !== undefined, { message: "A reaction or reply is required." });
+export const recipientResponseSchema = z.object({
+  reaction: recipientReactionSchema.nullable(),
+  reply: z.string().nullable(),
+  updatedAt: z.string(),
+});
+
 export const managedGiftSchema = publicGiftSchema.extend({
   status: giftStatusSchema,
   updatedAt: z.string(),
@@ -77,6 +88,8 @@ export const managedGiftSchema = publicGiftSchema.extend({
   pinProtected: z.boolean(),
 });
 
+export type RecipientResponseInput = z.infer<typeof recipientResponseInputSchema>;
+export type RecipientResponse = z.infer<typeof recipientResponseSchema>;
 export type PublishGiftInput = z.infer<typeof publishGiftInputSchema>;
 export type ManageGiftUpdate = z.infer<typeof manageGiftUpdateSchema>;
 export type PublicGift = z.infer<typeof publicGiftSchema>;

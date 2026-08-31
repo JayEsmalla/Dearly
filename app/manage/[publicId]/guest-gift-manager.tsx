@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { ManagedGift } from "@/lib/gifts/schema";
+import type { ManagedGift, RecipientResponse } from "@/lib/gifts/schema";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { ShareTools } from "@/app/ui/share-tools";
 import { WorkspaceHeader } from "@/app/ui/navigation";
@@ -20,6 +20,7 @@ function toLocalDateTimeInput(value: string | null) {
 
 export default function GuestGiftManager({ publicId, token }: Props) {
   const [gift, setGift] = useState<ManagedGift | null>(null);
+  const [recipientResponse, setRecipientResponse] = useState<RecipientResponse | null>(null);
   const [recipientName, setRecipientName] = useState("");
   const [senderName, setSenderName] = useState("");
   const [message, setMessage] = useState("");
@@ -49,9 +50,10 @@ export default function GuestGiftManager({ publicId, token }: Props) {
     const controller = new AbortController();
     fetch(`/api/gifts/${encodeURIComponent(publicId)}/manage`, { headers: { Authorization: authorizationValue }, signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
-        const result = await response.json() as { gift?: ManagedGift; error?: { message?: string } };
+        const result = await response.json() as { gift?: ManagedGift; response?: RecipientResponse | null; error?: { message?: string } };
         if (!response.ok || !result.gift) throw new Error(result.error?.message ?? "This private gift link is invalid.");
         setGift(result.gift);
+        setRecipientResponse(result.response ?? null);
         setRecipientName(result.gift.recipientName);
         setSenderName(result.gift.senderName);
         setMessage(result.gift.message);
@@ -172,6 +174,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
           </dl>
           {!disabled && <ShareTools url={`/g/${gift.publicId}`} recipientName={gift.recipientName} senderName={gift.senderName} compact />}
           {!disabled && <a href={`/g/${gift.publicId}`} target="_blank" rel="noreferrer">Open recipient view ↗</a>}
+          {recipientResponse && <section className="guest-response-summary"><span className="mini-label">Recipient response</span><strong>{recipientResponse.reaction ?? "A reply arrived"}</strong>{recipientResponse.reply && <blockquote>“{recipientResponse.reply}”</blockquote>}<small>{new Date(recipientResponse.updatedAt).toLocaleString()}</small></section>}
           {!gift.ownerId && accountToken && <button className="guest-claim-action" type="button" disabled={busy} onClick={claimGift}>Add to my account</button>}
           {!gift.ownerId && !accountToken && <Link className="guest-signin-link" href={`/login?next=${encodeURIComponent(`/manage/${publicId}?token=${token}`)}`}>Sign in to save this gift</Link>}
           {gift.ownerId && <span className="guest-account-owned">✓ Saved to a Dearly account</span>}

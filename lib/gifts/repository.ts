@@ -3,13 +3,15 @@ import "server-only";
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
-import { publishedBuilderDataSchema, type ManageGiftUpdate, type ManagedGift, type PublishGiftInput, type PublicGift } from "./schema";
+import { publishedBuilderDataSchema, type ManageGiftUpdate, type ManagedGift, type PublishGiftInput, type PublicGift, type RecipientResponse, type RecipientResponseInput } from "./schema";
 
 const publicGiftColumns = "public_id, occasion, gift_type, recipient_name, sender_name, message, theme, builder_data, opens_at, expires_at, published_at";
 const managedGiftColumns = `${publicGiftColumns}, status, updated_at, owner_id, pin_hash, access_version`;
 const publicStatuses = ["published", "opened", "replied"] as const;
 const pinAttemptLimit = 5;
 const pinAttemptWindowMs = 10 * 60 * 1000;
+const responseAttemptLimit = 10;
+const responseAttemptWindowMs = 10 * 60 * 1000;
 
 type GiftUpdate = Database["public"]["Tables"]["gifts"]["Update"];
 
@@ -22,6 +24,10 @@ function createManagementToken() {
 }
 
 function hashManagementToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function hashRecipientResponseToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
@@ -218,6 +224,87 @@ export async function markGiftOpened(publicId: string) {
     .maybeSingle();
   if (existing.error) throw existing.error;
   return Boolean(existing.data);
+}
+
+function toRecipientResponse(row: { reaction: RecipientResponse["reaction"]; reply: string | null; updated_at: string }): RecipientResponse {
+  return { reaction: row.reaction, reply: row.reply, updatedAt: row.updated_at };
+}
+
+export async function getGiftResponse(publicId: string, responseToken: string) {
+  const supabase = createSupabaseAdmin();
+  const gift = await supabase.from("gifts").select("id").eq("public_id", publicId).in("status", ["opened", "replied"]).maybeSingle();
+  if (gift.error) throw gift.error;
+  if (!gift.data) return null;
+  const response = await supabase
+    .from("gift_responses")
+    .select("reaction, reply, updated_at")
+    .eq("gift_id", gift.data.id)
+    .eq("response_token_hash", hashRecipientResponseToken(responseToken))
+    .maybeSingle();
+  if (response.error) throw response.error;
+  return response.data ? toRecipientResponse(response.data) : null;
+}
+
+export async function checkGiftResponseRateLimit(publicId: string, clientHash: string) {
+  const supabase = createSupabaseAdmin();
+  const gift = await supabase.from("gifts").select("id").eq("public_id", publicId).in("status", ["opened", "replied"]).maybeSingle();
+  if (gift.error) throw gift.error;
+  if (!gift.data) return true;
+
+  const windowStart = new Date(Date.now() - responseAttemptWindowMs).toISOString();
+  const attempts = await supabase
+    .from("gift_response_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("gift_id", gift.data.id)
+    .eq("client_hash", clientHash)
+    .gte("attempted_at", windowStart);
+  if (attempts.error) throw attempts.error;
+  if ((attempts.count ?? 0) >= responseAttemptLimit) return false;
+
+  const recorded = await supabase.from("gift_response_attempts").insert({ gift_id: gift.data.id, client_hash: clientHash });
+  if (recorded.error) throw recorded.error;
+
+  const cleanupBefore = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const cleanup = await supabase.from("gift_response_attempts").delete().eq("gift_id", gift.data.id).lt("attempted_at", cleanupBefore);
+  if (cleanup.error) throw cleanup.error;
+  return true;
+}
+
+export async function saveGiftResponse(publicId: string, input: RecipientResponseInput, responseToken: string) {
+  const supabase = createSupabaseAdmin();
+  const gift = await supabase.from("gifts").select("id, status, opened_at").eq("public_id", publicId).in("status", ["opened", "replied"]).maybeSingle();
+  if (gift.error) throw gift.error;
+  if (!gift.data) return { state: "not_opened" as const };
+
+  const responseTokenHash = hashRecipientResponseToken(responseToken);
+  const existing = await supabase.from("gift_responses").select("reaction, reply, response_token_hash").eq("gift_id", gift.data.id).maybeSingle();
+  if (existing.error) throw existing.error;
+  if (existing.data && existing.data.response_token_hash !== responseTokenHash) return { state: "claimed" as const };
+
+  const reaction = input.reaction !== undefined ? input.reaction : existing.data?.reaction ?? null;
+  const reply = input.reply !== undefined ? (input.reply?.trim() || null) : existing.data?.reply ?? null;
+  if (!reaction && !reply) return { state: "empty" as const };
+
+  const response = existing.data
+    ? await supabase.from("gift_responses").update({ reaction, reply }).eq("gift_id", gift.data.id).eq("response_token_hash", responseTokenHash).select("reaction, reply, updated_at").single()
+    : await supabase.from("gift_responses").insert({ gift_id: gift.data.id, response_token_hash: responseTokenHash, reaction, reply }).select("reaction, reply, updated_at").single();
+  if (response.error && !existing.data && response.error.code === "23505") return { state: "claimed" as const };
+  if (response.error) throw response.error;
+  if (gift.data.status !== "replied") {
+    const statusUpdate = await supabase.from("gifts").update({ status: "replied", opened_at: gift.data.opened_at ?? new Date().toISOString() }).eq("id", gift.data.id);
+    if (statusUpdate.error) throw statusUpdate.error;
+  }
+  return { state: "saved" as const, response: toRecipientResponse(response.data) };
+}
+
+export async function getManagedGiftResponse(publicId: string, managementToken: string) {
+  const supabase = createSupabaseAdmin();
+  const gift = await supabase.from("gifts").select("id").eq("public_id", publicId).eq("management_token_hash", hashManagementToken(managementToken)).maybeSingle();
+  if (gift.error) throw gift.error;
+  if (!gift.data) return null;
+  const response = await supabase.from("gift_responses").select("reaction, reply, updated_at").eq("gift_id", gift.data.id).maybeSingle();
+  if (response.error) throw response.error;
+  return response.data ? toRecipientResponse(response.data) : null;
 }
 
 export async function getManagedGift(publicId: string, managementToken: string) {

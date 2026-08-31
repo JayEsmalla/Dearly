@@ -24,14 +24,35 @@ type SavedRecipientResponse = {
 
 const phases: RecipientPhase[] = ["intro", "wrapped", "reveal", "final"];
 const reactions = [
-  { label: "Loved it", symbol: "♥" },
-  { label: "Made me smile", symbol: "☺" },
-  { label: "So thoughtful", symbol: "✦" },
-  { label: "Surprised me", symbol: "!" },
+  { label: "This made me smile.", symbol: "☺" },
+  { label: "I love this.", symbol: "♥" },
+  { label: "This is so thoughtful.", symbol: "✦" },
+  { label: "You made my day.", symbol: "☀" },
 ] as const;
 
 function getResponseKey(persistenceKey: string) {
   return `dearly:recipient-response:v1:${encodeURIComponent(persistenceKey)}`;
+}
+
+function getResponseTokenKey(persistenceKey: string) {
+  return `dearly:recipient-response-token:v1:${encodeURIComponent(persistenceKey)}`;
+}
+
+function createResponseToken() {
+  return `${window.crypto.randomUUID()}${window.crypto.randomUUID()}`.replace(/-/g, "");
+}
+
+function getOrCreateResponseToken(persistenceKey: string) {
+  const key = getResponseTokenKey(persistenceKey);
+  try {
+    const existing = window.localStorage.getItem(key);
+    if (existing && /^[A-Za-z0-9_-]{32,128}$/.test(existing)) return existing;
+    const token = createResponseToken();
+    window.localStorage.setItem(key, token);
+    return token;
+  } catch {
+    return createResponseToken();
+  }
 }
 
 export function RecipientExperience({
@@ -49,6 +70,8 @@ export function RecipientExperience({
   const [reply, setReply] = useState("");
   const [replySaved, setReplySaved] = useState(false);
   const [responseStatus, setResponseStatus] = useState("");
+  const [responseBusy, setResponseBusy] = useState(false);
+  const [responseToken, setResponseToken] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const phaseRef = useRef<HTMLDivElement>(null);
@@ -60,13 +83,14 @@ export function RecipientExperience({
     if (preview || !persistenceKey) return;
     const timeout = window.setTimeout(() => {
       try {
+        setResponseToken(getOrCreateResponseToken(persistenceKey));
         const stored = window.localStorage.getItem(getResponseKey(persistenceKey));
         if (!stored) return;
         const saved = JSON.parse(stored) as Partial<SavedRecipientResponse>;
         if (saved.version !== 1) return;
         if (typeof saved.reaction === "string" || saved.reaction === null) setReaction(saved.reaction ?? null);
         if (typeof saved.reply === "string") {
-          setReply(saved.reply.slice(0, 240));
+          setReply(saved.reply.slice(0, 500));
           setReplySaved(Boolean(saved.reply.trim()));
         }
       } catch {
@@ -75,6 +99,28 @@ export function RecipientExperience({
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [persistenceKey, preview]);
+
+  useEffect(() => {
+    if (preview || !persistenceKey || !responseToken) return;
+    const controller = new AbortController();
+    fetch(`/api/gifts/${encodeURIComponent(persistenceKey)}/response`, {
+      cache: "no-store",
+      signal: controller.signal,
+      headers: { "X-Recipient-Response-Token": responseToken },
+    })
+      .then(async (serverResponse) => {
+        if (!serverResponse.ok) return;
+        const result = await serverResponse.json() as { response?: { reaction: string | null; reply: string | null } | null };
+        if (!result.response) return;
+        setReaction(result.response.reaction);
+        setReply(result.response.reply ?? "");
+        setReplySaved(Boolean(result.response.reply?.trim()));
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, [persistenceKey, preview, responseToken]);
 
   useEffect(() => {
     phaseRef.current?.focus({ preventScroll: true });
@@ -151,26 +197,51 @@ export function RecipientExperience({
     }
   };
 
+  const sendResponse = async (payload: { reaction?: string | null; reply?: string | null }, nextReaction: string | null, nextReply: string) => {
+    const savedLocally = persistResponse(nextReaction, nextReply);
+    if (preview || !persistenceKey) {
+      if (savedLocally) setResponseStatus(preview ? "Preview response saved." : "Response saved on this device.");
+      return;
+    }
+
+    setResponseBusy(true);
+    try {
+      const token = responseToken ?? getOrCreateResponseToken(persistenceKey);
+      if (!responseToken) setResponseToken(token);
+      const serverResponse = await fetch(`/api/gifts/${encodeURIComponent(persistenceKey)}/response`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Recipient-Response-Token": token },
+        body: JSON.stringify(payload),
+      });
+      const result = await serverResponse.json() as { response?: { reaction: string | null; reply: string | null }; error?: { message?: string } };
+      if (!serverResponse.ok || !result.response) throw new Error(result.error?.message ?? "Your response could not be sent.");
+      setReaction(result.response.reaction);
+      setReply(result.response.reply ?? "");
+      setReplySaved(Boolean(result.response.reply?.trim()));
+      setResponseStatus(`Response sent privately to ${senderName}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Your response could not be sent.";
+      setResponseStatus(savedLocally ? `${message} Your response is still saved on this device.` : message);
+    } finally {
+      setResponseBusy(false);
+    }
+  };
+
   const chooseReaction = (nextReaction: string) => {
     setReaction(nextReaction);
-    const saved = persistResponse(nextReaction, replySaved ? reply : "");
-    if (saved) setResponseStatus(preview ? "Preview reaction selected." : "Reaction saved on this device.");
+    void sendResponse({ reaction: nextReaction }, nextReaction, replySaved ? reply : "");
   };
 
   const submitReply = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const cleanReply = reply.trim().slice(0, 240);
+    const cleanReply = reply.trim().slice(0, 500);
     if (!cleanReply) {
       setReplySaved(false);
       setResponseStatus("Write a short reply before saving it.");
       return;
     }
     setReply(cleanReply);
-    const saved = persistResponse(reaction, cleanReply);
-    if (saved) {
-      setReplySaved(true);
-      setResponseStatus(preview ? "Preview reply saved." : "Reply saved on this device.");
-    }
+    void sendResponse({ reaction, reply: cleanReply }, reaction, cleanReply);
   };
 
   const toggleSound = () => {
@@ -248,6 +319,7 @@ export function RecipientExperience({
                   key={option.label}
                   onClick={() => chooseReaction(option.label)}
                   type="button"
+                  disabled={responseBusy}
                 >
                   <i aria-hidden="true">{option.symbol}</i>
                   <span>{option.label}</span>
@@ -259,17 +331,17 @@ export function RecipientExperience({
           <form className="recipient-reply" onSubmit={submitReply}>
             <label htmlFor="recipient-reply-message">Send a short reply to {senderName}</label>
             <div>
-              <textarea id="recipient-reply-message" value={reply} maxLength={240} rows={3} onChange={(event) => { setReply(event.target.value); setReplySaved(false); }} placeholder="Write something they would love to hear…" />
-              <small>{reply.length}/240</small>
+              <textarea id="recipient-reply-message" value={reply} maxLength={500} rows={4} onChange={(event) => { setReply(event.target.value); setReplySaved(false); }} placeholder="Write something they would love to hear…" />
+              <small>{reply.length}/500</small>
             </div>
-            <button type="submit">{replySaved ? "Reply saved" : "Save reply"}</button>
+            <button type="submit" disabled={responseBusy}>{responseBusy ? "Sending…" : replySaved ? "Reply sent" : "Send reply"}</button>
           </form>
 
           {responseStatus && <p className="recipient-reaction-status" role="status" aria-live="polite">{responseStatus}</p>}
 
           <div className="recipient-final-actions">
             <button className="recipient-primary-action" type="button" onClick={replay}>Replay gift</button>
-            <small>{preview ? "Preview only · responses are not sent" : "Responses stay on this device until Dearly publishing is connected"}</small>
+            <small>{preview ? "Preview only · responses are not sent" : "Your response is shared privately with the sender · no account required"}</small>
             <small>Made with Dearly</small>
           </div>
         </div>

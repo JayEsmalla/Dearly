@@ -1,4 +1,4 @@
-import { disableManagedGift, getManagedGift, updateManagedGift } from "@/lib/gifts/repository";
+import { disableManagedGift, getManagedGift, getManagedGiftResponse, updateManagedGift } from "@/lib/gifts/repository";
 import { manageGiftUpdateSchema } from "@/lib/gifts/schema";
 import { SupabaseNotConfiguredError } from "@/lib/supabase/server";
 
@@ -28,7 +28,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ publ
 
   try {
     const gift = await getManagedGift(publicId, token);
-    return gift ? json({ gift }, 200) : json({ error: { code: "not_found", message: "This private gift link is invalid." } }, 404);
+    if (!gift) return json({ error: { code: "not_found", message: "This private gift link is invalid." } }, 404);
+    const response = await getManagedGiftResponse(publicId, token);
+    return json({ gift, response }, 200);
   } catch (error) {
     return serviceError(error);
   }
