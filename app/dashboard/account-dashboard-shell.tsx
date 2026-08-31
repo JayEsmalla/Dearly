@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { GiftFormatExperience, defaultGiftFormatDetails } from "@/app/create/personalize/gift-format-experience";
 import { RecipientExperience } from "@/app/ui/recipient-experience";
+import { GiftMediaManager } from "@/app/ui/gift-media-manager";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import type { DashboardGift, SavedGiftTemplate } from "@/lib/gifts/schema";
 
@@ -427,7 +428,7 @@ export default function AccountDashboardShell() {
         <label><span>Expiration</span><input type="datetime-local" value={editForm.expiresAt} onChange={(event) => setEditForm({ ...editForm, expiresAt: event.target.value })} /></label>
         <label className="wide"><span>{editGift.pinProtected ? "Change PIN (optional)" : "Add PIN (optional)"}</span><input inputMode="numeric" pattern="[0-9]*" minLength={4} maxLength={8} value={editForm.pin} placeholder="4–8 digits" onChange={(event) => setEditForm({ ...editForm, pin: event.target.value.replace(/\D/g, "").slice(0, 8), removePin: false })} /></label>
         {editGift.pinProtected && <label className="dashboard-remove-pin"><input type="checkbox" checked={editForm.removePin} onChange={(event) => setEditForm({ ...editForm, removePin: event.target.checked, pin: "" })} /><span>Remove current PIN protection</span></label>}
-      </div><div className="dashboard-modal-actions"><button type="button" onClick={() => { setEditGift(null); setEditForm(null); }}>Cancel</button><button className="primary" type="button" onClick={() => void saveEdit()} disabled={busyKey.endsWith(":edit")}>Save changes</button></div></section></div>}
+      </div><GiftMediaManager publicId={editGift.publicId} disabled={editGift.status === "archived" || editGift.status === "disabled"} compact /><div className="dashboard-modal-actions"><button type="button" onClick={() => { setEditGift(null); setEditForm(null); }}>Cancel</button><button className="primary" type="button" onClick={() => void saveEdit()} disabled={busyKey.endsWith(":edit")}>Save changes</button></div></section></div>}
 
       {previewGift && <div className="dashboard-modal-backdrop dashboard-preview-backdrop"><section className="dashboard-modal dashboard-preview-modal" role="dialog" aria-modal="true" aria-label={`Preview gift for ${previewGift.recipientName}`}><button className="dashboard-modal-close" type="button" onClick={() => setPreviewGift(null)} aria-label="Close preview">×</button><RecipientExperience recipientName={previewGift.recipientName} senderName={previewGift.senderName} occasion={previewGift.occasion} giftType={previewGift.giftType} finalMessage={previewGift.builderData.finalMessage || previewGift.message} preview><GiftFormatExperience gift={previewGift.giftType} recipient={previewGift.recipientName} sender={previewGift.senderName} message={previewGift.message} signature={previewGift.builderData.signature} details={{ ...defaultGiftFormatDetails, ...previewGift.builderData.details }} presentation={previewGift.builderData.presentation} finalMessage={previewGift.builderData.finalMessage} /></RecipientExperience></section></div>}
 

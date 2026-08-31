@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 
@@ -51,7 +52,7 @@ export function ShareTools({ url, recipientName, senderName, compact = false }: 
 
   return (
     <div className={`share-toolkit${compact ? " share-toolkit--compact" : ""}`}>
-      {qrDataUrl && <div className="share-qr"><img src={qrDataUrl} alt={`QR code for ${recipientName}'s Dearly gift`} /><small>Scan to open</small></div>}
+      {qrDataUrl && <div className="share-qr"><Image unoptimized src={qrDataUrl} width={88} height={88} alt={`QR code for ${recipientName}'s Dearly gift`} /><small>Scan to open</small></div>}
       <div className="share-tool-actions">
         <button type="button" onClick={copyLink}>Copy link</button>
         <button type="button" onClick={nativeShare}>Share</button>

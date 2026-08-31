@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
+import { giftMediaBucket } from "./media-config";
 import { publishedBuilderDataSchema, type DashboardGift, type ManageGiftUpdate, type ManagedGift, type PublishGiftInput, type PublicGift, type RecipientResponse, type RecipientResponseInput, type SavedGiftTemplate } from "./schema";
 
 const publicGiftColumns = "public_id, occasion, gift_type, recipient_name, sender_name, message, theme, builder_data, opens_at, expires_at, published_at";
@@ -492,15 +493,22 @@ export async function publishOwnedDraft(publicId: string, ownerId: string) {
 
 export async function deleteOwnedGift(publicId: string, ownerId: string) {
   const supabase = createSupabaseAdmin();
-  const deleted = await supabase
-    .from("gifts")
-    .delete()
-    .eq("public_id", publicId)
-    .eq("owner_id", ownerId)
-    .select("public_id")
-    .maybeSingle();
+  const existing = await supabase.from("gifts").select("id").eq("public_id", publicId).eq("owner_id", ownerId).maybeSingle();
+  if (existing.error) throw existing.error;
+  if (!existing.data) return false;
+
+  const media = await supabase.from("gift_media").select("storage_path, thumbnail_path").eq("gift_id", existing.data.id);
+  if (media.error) throw media.error;
+  const deleted = await supabase.from("gifts").delete().eq("id", existing.data.id).eq("owner_id", ownerId).select("public_id").maybeSingle();
   if (deleted.error) throw deleted.error;
-  return Boolean(deleted.data);
+  if (!deleted.data) return false;
+
+  const paths = media.data.flatMap((item) => [item.storage_path, item.thumbnail_path].filter((path): path is string => Boolean(path)));
+  if (paths.length) {
+    const storageDelete = await supabase.storage.from(giftMediaBucket).remove(paths);
+    if (storageDelete.error) console.error("Deleted gift left private media objects for later cleanup", storageDelete.error);
+  }
+  return true;
 }
 
 export async function duplicateOwnedGift(publicId: string, ownerId: string) {
@@ -594,6 +602,17 @@ export async function createOwnedDraftFromTemplate(templateId: string, ownerId: 
   });
   if (draft.error) throw draft.error;
   return getOwnedDashboardGift(publicId, ownerId);
+}
+
+export async function authorizeGiftMedia(publicId: string, managementToken: string | null, ownerId: string | null) {
+  if (!managementToken && !ownerId) return null;
+  const supabase = createSupabaseAdmin();
+  const gift = await supabase.from("gifts").select("id, status, owner_id, management_token_hash").eq("public_id", publicId).maybeSingle();
+  if (gift.error) throw gift.error;
+  if (!gift.data) return null;
+  const managed = managementToken ? gift.data.management_token_hash === hashManagementToken(managementToken) : false;
+  const owned = ownerId ? gift.data.owner_id === ownerId : false;
+  return managed || owned ? { id: gift.data.id, status: gift.data.status } : null;
 }
 
 export async function getManagedGift(publicId: string, managementToken: string) {

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const giftThemeSchema = z.enum(["rose", "wine", "sage", "gold"]);
 export const giftStatusSchema = z.enum(["draft", "wrapped", "published", "opened", "replied", "disabled", "archived"]);
+export const giftMediaTypeSchema = z.enum(["image", "background_audio", "voice"]);
 
 const giftPresentationSchema = z.object({
   typography: z.enum(["serif", "handwritten", "clean"]),
@@ -97,6 +98,19 @@ export const dashboardGiftSchema = publicGiftSchema.extend({
   response: recipientResponseSchema.nullable(),
 });
 
+export const giftMediaAssetSchema = z.object({
+  id: z.string().uuid(),
+  mediaType: giftMediaTypeSchema,
+  url: z.string().url(),
+  thumbnailUrl: z.string().url().nullable(),
+  mimeType: z.string(),
+  bytes: z.number().int().positive(),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+  caption: z.string().nullable(),
+  sortOrder: z.number().int().nonnegative(),
+});
+
 export const savedGiftTemplateSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(80),
@@ -113,6 +127,8 @@ export const saveGiftTemplateInputSchema = z.object({
   name: z.string().trim().min(1).max(80),
 });
 
+export type GiftMediaType = z.infer<typeof giftMediaTypeSchema>;
+export type GiftMediaAsset = z.infer<typeof giftMediaAssetSchema>;
 export type DashboardGift = z.infer<typeof dashboardGiftSchema>;
 export type SavedGiftTemplate = z.infer<typeof savedGiftTemplateSchema>;
 export type RecipientResponseInput = z.infer<typeof recipientResponseInputSchema>;

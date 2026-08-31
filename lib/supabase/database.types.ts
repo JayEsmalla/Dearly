@@ -88,6 +88,40 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["gift_templates"]["Insert"]>;
         Relationships: [];
       };
+      gift_media: {
+        Row: {
+          bytes: number;
+          caption: string | null;
+          created_at: string;
+          gift_id: string;
+          height: number | null;
+          id: string;
+          media_type: "image" | "background_audio" | "voice";
+          mime_type: string;
+          sort_order: number;
+          storage_path: string;
+          thumbnail_path: string | null;
+          updated_at: string;
+          width: number | null;
+        };
+        Insert: {
+          bytes: number;
+          caption?: string | null;
+          created_at?: string;
+          gift_id: string;
+          height?: number | null;
+          id?: string;
+          media_type: "image" | "background_audio" | "voice";
+          mime_type: string;
+          sort_order?: number;
+          storage_path: string;
+          thumbnail_path?: string | null;
+          updated_at?: string;
+          width?: number | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["gift_media"]["Insert"]>;
+        Relationships: [];
+      };
       gift_responses: {
         Row: {
           created_at: string;

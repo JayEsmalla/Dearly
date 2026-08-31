@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { giftAccessCookieName, verifyGiftAccessTicket } from "@/lib/gifts/access";
 import { getGiftAccessPolicy, getGiftAvailability, getPublicGift } from "@/lib/gifts/repository";
+import { getRecipientGiftMedia } from "@/lib/gifts/media";
+import type { GiftMediaAsset } from "@/lib/gifts/schema";
 import { SupabaseNotConfiguredError } from "@/lib/supabase/server";
 import PinUnlock from "./pin-unlock";
 import ScheduledGift from "./scheduled-gift";
@@ -65,5 +67,12 @@ export default async function GiftPage({ params }: GiftPageProps) {
     }
   }
 
-  return <RecipientGift gift={gift} />;
+  let media: GiftMediaAsset[] = [];
+  try {
+    media = await getRecipientGiftMedia(publicId, gift.expiresAt);
+  } catch (error) {
+    console.error("Recipient gift media could not be loaded", error);
+  }
+
+  return <RecipientGift gift={gift} media={media} />;
 }

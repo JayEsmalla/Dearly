@@ -5,6 +5,8 @@ import { WorkflowHeader } from "@/app/ui/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { RecipientExperience } from "@/app/ui/recipient-experience";
 import { ShareTools } from "@/app/ui/share-tools";
+import { GiftMediaManager } from "@/app/ui/gift-media-manager";
+import { backgroundAudioLimitBytes, voiceMessageLimitBytes } from "@/lib/gifts/media-config";
 import {
   backgroundOptions,
   decorationOptions,
@@ -30,6 +32,7 @@ const defaultMessage = "You make ordinary days feel worth remembering.";
 const defaultFinalMessage = "No matter the occasion, I hope you remember how much you mean to me.";
 const defaultSignature = "Always,";
 const allowedPhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const allowedAudioTypes = new Set(["audio/mpeg", "audio/mp4", "audio/ogg", "audio/webm", "audio/wav"]);
 const maxPhotoBytes = 650_000;
 const maxPhotos = 3;
 
@@ -42,7 +45,7 @@ type GiftEditorProps = {
   template?: TemplatePreset | null;
 };
 
-type PublishedGift = { publicId: string; shareUrl: string; managementUrl: string };
+type PublishedGift = { publicId: string; shareUrl: string; managementUrl: string; managementToken: string };
 type LocalGiftDraft = {
   version: 1;
   recipient: string;
@@ -126,6 +129,16 @@ function fileToDataUrl(file: File) {
   });
 }
 
+async function photoToFile(photo: GiftPhoto) {
+  const response = await fetch(photo.dataUrl);
+  const blob = await response.blob();
+  return new File([blob], photo.name || "gift-photo", { type: blob.type || "image/webp" });
+}
+
+function formatMegabytes(bytes: number) {
+  return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
 function ChoiceRow<T extends string>({
   label,
   value,
@@ -163,6 +176,9 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
   const [presentation, setPresentation] = useState<GiftPresentation>(initialPresentation);
   const [photos, setPhotos] = useState<GiftPhoto[]>([]);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [backgroundAudio, setBackgroundAudio] = useState<File | null>(null);
+  const [voiceMessage, setVoiceMessage] = useState<File | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [hasPreviewed, setHasPreviewed] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -337,6 +353,9 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
     setPresentation(templatePresentation());
     setPhotos([]);
     setPhotoError(null);
+    setBackgroundAudio(null);
+    setVoiceMessage(null);
+    setMediaError(null);
     setDraftStatus(template ? `${template.name} reset` : "Builder reset");
   };
 
@@ -357,6 +376,9 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
     setPresentation(templatePresentation());
     setPhotos([]);
     setPhotoError(null);
+    setBackgroundAudio(null);
+    setVoiceMessage(null);
+    setMediaError(null);
     setLastSavedAt(null);
     setDraftStatus("Fresh draft started");
   };
@@ -395,6 +417,19 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
     }
   };
 
+  const chooseAudioFile = (kind: "background" | "voice", file: File | null) => {
+    if (!file) return;
+    const limit = kind === "background" ? backgroundAudioLimitBytes : voiceMessageLimitBytes;
+    if (!allowedAudioTypes.has(file.type) || file.size > limit) {
+      setMediaError(`Use MP3, M4A, OGG, WebM, or WAV audio under ${formatMegabytes(limit)}.`);
+      return;
+    }
+    invalidatePublication();
+    if (kind === "background") setBackgroundAudio(file);
+    else setVoiceMessage(file);
+    setMediaError(null);
+  };
+
   const updatePhotoCaption = (id: string, caption: string) => {
     beginEdit();
     setPhotos((current) => current.map((photo) => photo.id === id ? { ...photo, caption } : photo));
@@ -414,6 +449,26 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
   const openPreview = () => {
     setPreviewOpen(true);
     setHasPreviewed(true);
+  };
+
+  const uploadBuilderMedia = async (publicId: string, managementToken: string) => {
+    const upload = async (mediaType: "image" | "background_audio" | "voice", file: File, caption?: string) => {
+      const form = new FormData();
+      form.append("mediaType", mediaType);
+      form.append("file", file);
+      if (caption) form.append("caption", caption);
+      const response = await fetch(`/api/gifts/${encodeURIComponent(publicId)}/media`, {
+        method: "POST",
+        headers: { "X-Management-Token": managementToken },
+        body: form,
+      });
+      const result = await response.json() as { error?: { message?: string } };
+      if (!response.ok) throw new Error(result.error?.message ?? "One media file could not be uploaded.");
+    };
+
+    for (const photo of photos) await upload("image", await photoToFile(photo), photo.caption);
+    if (backgroundAudio) await upload("background_audio", backgroundAudio, "Gift soundtrack");
+    if (voiceMessage) await upload("voice", voiceMessage, `Voice message from ${sender || "sender"}`);
   };
 
   const publishCurrentGift = async () => {
@@ -474,7 +529,18 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
 
       const shareUrl = new URL(result.sharePath, window.location.origin).toString();
       const managementUrl = new URL(result.managementPath, window.location.origin).toString();
-      setPublishedGift({ publicId: result.gift.publicId, shareUrl, managementUrl });
+      const managementToken = result.managementToken ?? window.localStorage.getItem(`dearly:management:${result.gift.publicId}`) ?? "";
+
+      if (managementToken && (photos.length || backgroundAudio || voiceMessage)) {
+        try {
+          await uploadBuilderMedia(result.gift.publicId, managementToken);
+          setMediaError(null);
+        } catch (error) {
+          setMediaError(`${error instanceof Error ? error.message : "Some media could not be uploaded."} The gift is published; retry below.`);
+        }
+      }
+
+      setPublishedGift({ publicId: result.gift.publicId, shareUrl, managementUrl, managementToken });
 
       try {
         const stored = window.localStorage.getItem("dearly:guest-gifts:v1");
@@ -557,7 +623,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
 
             <div className="photo-builder">
               <div className="photo-builder-heading"><span>Photos <small>{photos.length}/{maxPhotos}</small></span><label className={photos.length >= maxPhotos ? "disabled" : ""}>Add photos<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={photos.length >= maxPhotos} onChange={handlePhotoFiles} /></label></div>
-              <p>JPG, PNG, or WebP · up to 650 KB each. Photos stay in this browser draft.</p>
+              <p>JPG, PNG, or WebP · up to 650 KB each in the autosaved draft. When published, Dearly compresses them and stores them privately.</p>
               {photoError && <p className="photo-error" role="alert">{photoError}</p>}
               {photos.length > 0 && (
                 <div className="photo-editor-list">
@@ -570,6 +636,16 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="audio-builder">
+              <div className="audio-builder-heading"><span>Optional audio</span><small>Never autoplayed · reselect audio after a browser refresh until published.</small></div>
+              <div className="audio-builder-grid">
+                <label><strong>Background soundtrack</strong><small>MP3, M4A, OGG, WebM, WAV · {formatMegabytes(backgroundAudioLimitBytes)} max</small><input type="file" accept="audio/mpeg,audio/mp4,audio/ogg,audio/webm,audio/wav" onChange={(event) => { chooseAudioFile("background", event.currentTarget.files?.[0] ?? null); event.currentTarget.value = ""; }} /></label>
+                <label><strong>Voice message</strong><small>Personal audio note · {formatMegabytes(voiceMessageLimitBytes)} max</small><input type="file" accept="audio/mpeg,audio/mp4,audio/ogg,audio/webm,audio/wav" onChange={(event) => { chooseAudioFile("voice", event.currentTarget.files?.[0] ?? null); event.currentTarget.value = ""; }} /></label>
+              </div>
+              {(backgroundAudio || voiceMessage) && <div className="audio-builder-selected">{backgroundAudio && <span>♪ Soundtrack: <strong>{backgroundAudio.name}</strong><button type="button" onClick={() => { invalidatePublication(); setBackgroundAudio(null); }}>Remove</button></span>}{voiceMessage && <span>◉ Voice: <strong>{voiceMessage.name}</strong><button type="button" onClick={() => { invalidatePublication(); setVoiceMessage(null); }}>Remove</button></span>}</div>}
+              {mediaError && !publishedGift && <p className="photo-error" role="alert">{mediaError}</p>}
             </div>
           </section>
 
@@ -629,6 +705,8 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
               <div className="share-actions"><a href={publishedGift.shareUrl} target="_blank" rel="noreferrer">Open recipient gift ↗</a><a href={publishedGift.managementUrl}>Manage privately →</a></div>
               <a className="management-link" href={publishedGift.managementUrl}>Private management link</a>
               {giftPin && <small className="management-warning">PIN protection is on. Share the PIN separately from the recipient link.</small>}
+              {mediaError && <p className="publish-error" role="alert">{mediaError}</p>}
+              <GiftMediaManager publicId={publishedGift.publicId} managementToken={publishedGift.managementToken} compact />
               <small className="management-warning">Keep the management link private. Anyone with it can edit or disable this gift.</small>
             </section>
           )}

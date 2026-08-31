@@ -11,6 +11,8 @@ type RecipientExperienceProps = {
   giftType: string;
   finalMessage: string;
   children: ReactNode;
+  revealMedia?: ReactNode;
+  finalMedia?: ReactNode;
   preview?: boolean;
   persistenceKey?: string;
 };
@@ -62,6 +64,8 @@ export function RecipientExperience({
   giftType,
   finalMessage,
   children,
+  revealMedia,
+  finalMedia,
   preview = false,
   persistenceKey,
 }: RecipientExperienceProps) {
@@ -298,6 +302,7 @@ export function RecipientExperience({
             <p>Your gift is open.</p>
           </div>
           <div className="recipient-content-frame">{children}</div>
+          {revealMedia}
           <button className="recipient-secondary-action" type="button" onClick={() => goTo("final")}>One more thing <span aria-hidden="true">→</span></button>
         </div>
       )}
@@ -308,6 +313,7 @@ export function RecipientExperience({
           <span className="recipient-flow-kicker">One last note</span>
           <blockquote>“{finalMessage || "This was made especially for you."}”</blockquote>
           <p className="recipient-final-from">— {senderName}</p>
+          {finalMedia}
 
           <fieldset className="recipient-reactions">
             <legend>How did this make you feel?</legend>

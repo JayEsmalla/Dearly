@@ -6,6 +6,7 @@ import type { ManagedGift, RecipientResponse } from "@/lib/gifts/schema";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { ShareTools } from "@/app/ui/share-tools";
 import { WorkspaceHeader } from "@/app/ui/navigation";
+import { GiftMediaManager } from "@/app/ui/gift-media-manager";
 
 const themeOptions = ["rose", "wine", "sage", "gold"] as const;
 
@@ -197,6 +198,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
               {gift.pinProtected && <label className="guest-remove-pin"><input type="checkbox" checked={removePin} disabled={disabled} onChange={(event) => { setRemovePin(event.target.checked); if (event.target.checked) setNewPin(""); }} /><span>Remove the current PIN when saving</span></label>}
             </section>
           </div>
+          <GiftMediaManager publicId={publicId} managementToken={token} disabled={disabled} />
           <div className="guest-manager-actions">
             <button className="button button--primary" type="button" disabled={busy || disabled || !recipientName.trim() || !senderName.trim() || !message.trim() || Boolean(newPin && newPin.length < 4) || Boolean(opensAt && expiresAt && new Date(opensAt).getTime() >= new Date(expiresAt).getTime())} onClick={saveGift}>{busy ? "Working…" : "Save changes"}</button>
             <button className="guest-danger-action" type="button" disabled={busy || disabled} onClick={disableGift}>{disabled ? "Gift disabled" : "Disable public gift"}</button>
