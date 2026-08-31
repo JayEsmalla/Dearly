@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const giftThemeSchema = z.enum(["rose", "wine", "sage", "gold"]);
-export const giftStatusSchema = z.enum(["draft", "wrapped", "published", "opened", "replied", "disabled"]);
+export const giftStatusSchema = z.enum(["draft", "wrapped", "published", "opened", "replied", "disabled", "archived"]);
 
 const giftPresentationSchema = z.object({
   typography: z.enum(["serif", "handwritten", "clean"]),
@@ -88,6 +88,33 @@ export const managedGiftSchema = publicGiftSchema.extend({
   pinProtected: z.boolean(),
 });
 
+export const dashboardGiftSchema = publicGiftSchema.extend({
+  status: giftStatusSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  openedAt: z.string().nullable(),
+  pinProtected: z.boolean(),
+  response: recipientResponseSchema.nullable(),
+});
+
+export const savedGiftTemplateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(80),
+  occasion: z.string().nullable(),
+  giftType: z.string(),
+  theme: giftThemeSchema,
+  builderData: publishedBuilderDataSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const saveGiftTemplateInputSchema = z.object({
+  sourcePublicId: z.string().min(10).max(24),
+  name: z.string().trim().min(1).max(80),
+});
+
+export type DashboardGift = z.infer<typeof dashboardGiftSchema>;
+export type SavedGiftTemplate = z.infer<typeof savedGiftTemplateSchema>;
 export type RecipientResponseInput = z.infer<typeof recipientResponseInputSchema>;
 export type RecipientResponse = z.infer<typeof recipientResponseSchema>;
 export type PublishGiftInput = z.infer<typeof publishGiftInputSchema>;

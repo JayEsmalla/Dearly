@@ -3,10 +3,11 @@ import "server-only";
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
-import { publishedBuilderDataSchema, type ManageGiftUpdate, type ManagedGift, type PublishGiftInput, type PublicGift, type RecipientResponse, type RecipientResponseInput } from "./schema";
+import { publishedBuilderDataSchema, type DashboardGift, type ManageGiftUpdate, type ManagedGift, type PublishGiftInput, type PublicGift, type RecipientResponse, type RecipientResponseInput, type SavedGiftTemplate } from "./schema";
 
 const publicGiftColumns = "public_id, occasion, gift_type, recipient_name, sender_name, message, theme, builder_data, opens_at, expires_at, published_at";
 const managedGiftColumns = `${publicGiftColumns}, status, updated_at, owner_id, pin_hash, access_version`;
+const dashboardGiftColumns = `id, ${publicGiftColumns}, status, created_at, updated_at, opened_at, pin_hash, access_version, archived_from_status`;
 const publicStatuses = ["published", "opened", "replied"] as const;
 const pinAttemptLimit = 5;
 const pinAttemptWindowMs = 10 * 60 * 1000;
@@ -87,7 +88,7 @@ function toPublicGift(row: {
 }
 
 function toManagedGift(row: Parameters<typeof toPublicGift>[0] & {
-  status: "draft" | "wrapped" | "published" | "opened" | "replied" | "disabled";
+  status: "draft" | "wrapped" | "published" | "opened" | "replied" | "disabled" | "archived";
   updated_at: string;
   owner_id: string | null;
   pin_hash: string | null;
@@ -99,6 +100,46 @@ function toManagedGift(row: Parameters<typeof toPublicGift>[0] & {
     updatedAt: row.updated_at,
     ownerId: row.owner_id,
     pinProtected: Boolean(row.pin_hash),
+  };
+}
+
+function toDashboardGift(row: Parameters<typeof toPublicGift>[0] & {
+  status: DashboardGift["status"];
+  created_at: string;
+  updated_at: string;
+  opened_at: string | null;
+  pin_hash: string | null;
+}, response: RecipientResponse | null = null): DashboardGift {
+  return {
+    ...toPublicGift(row),
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    openedAt: row.opened_at,
+    pinProtected: Boolean(row.pin_hash),
+    response,
+  };
+}
+
+function toSavedGiftTemplate(row: {
+  id: string;
+  name: string;
+  occasion: string | null;
+  gift_type: string;
+  theme: "rose" | "wine" | "sage" | "gold";
+  builder_data: unknown;
+  created_at: string;
+  updated_at: string;
+}): SavedGiftTemplate {
+  return {
+    id: row.id,
+    name: row.name,
+    occasion: row.occasion,
+    giftType: row.gift_type,
+    theme: row.theme,
+    builderData: normalizeBuilderData(row.builder_data),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -305,6 +346,254 @@ export async function getManagedGiftResponse(publicId: string, managementToken: 
   const response = await supabase.from("gift_responses").select("reaction, reply, updated_at").eq("gift_id", gift.data.id).maybeSingle();
   if (response.error) throw response.error;
   return response.data ? toRecipientResponse(response.data) : null;
+}
+
+async function getOwnedDashboardGift(publicId: string, ownerId: string) {
+  const supabase = createSupabaseAdmin();
+  const gift = await supabase
+    .from("gifts")
+    .select(dashboardGiftColumns)
+    .eq("public_id", publicId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  if (gift.error) throw gift.error;
+  if (!gift.data) return null;
+
+  const response = await supabase
+    .from("gift_responses")
+    .select("reaction, reply, updated_at")
+    .eq("gift_id", gift.data.id)
+    .maybeSingle();
+  if (response.error) throw response.error;
+  return toDashboardGift(gift.data, response.data ? toRecipientResponse(response.data) : null);
+}
+
+export async function listOwnedGifts(ownerId: string) {
+  const supabase = createSupabaseAdmin();
+  const gifts = await supabase
+    .from("gifts")
+    .select(dashboardGiftColumns)
+    .eq("owner_id", ownerId)
+    .order("created_at", { ascending: false });
+  if (gifts.error) throw gifts.error;
+  if (!gifts.data.length) return [];
+
+  const responses = await supabase
+    .from("gift_responses")
+    .select("gift_id, reaction, reply, updated_at")
+    .in("gift_id", gifts.data.map((gift) => gift.id));
+  if (responses.error) throw responses.error;
+  const responseByGiftId = new Map(responses.data.map((response) => [response.gift_id, toRecipientResponse(response)]));
+  return gifts.data.map((gift) => toDashboardGift(gift, responseByGiftId.get(gift.id) ?? null));
+}
+
+export async function listOwnedGiftTemplates(ownerId: string) {
+  const supabase = createSupabaseAdmin();
+  const templates = await supabase
+    .from("gift_templates")
+    .select("id, name, occasion, gift_type, theme, builder_data, created_at, updated_at")
+    .eq("owner_id", ownerId)
+    .order("updated_at", { ascending: false });
+  if (templates.error) throw templates.error;
+  return templates.data.map(toSavedGiftTemplate);
+}
+
+export async function updateOwnedGift(publicId: string, ownerId: string, input: ManageGiftUpdate) {
+  const supabase = createSupabaseAdmin();
+  const existing = await supabase
+    .from("gifts")
+    .select("id, access_version, status")
+    .eq("public_id", publicId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  if (existing.error) throw existing.error;
+  if (!existing.data || existing.data.status === "archived" || existing.data.status === "disabled") return null;
+
+  const updates: GiftUpdate = {
+    recipient_name: input.recipientName,
+    sender_name: input.senderName,
+    message: input.message,
+    theme: input.theme,
+    builder_data: input.builderData ?? {},
+  };
+  if (input.opensAt !== undefined) updates.opens_at = input.opensAt;
+  if (input.expiresAt !== undefined) updates.expires_at = input.expiresAt;
+  if (input.pin !== undefined) {
+    if (input.pin === null) {
+      updates.pin_hash = null;
+      updates.pin_salt = null;
+    } else {
+      const protection = await createPinProtection(input.pin);
+      updates.pin_hash = protection.hash;
+      updates.pin_salt = protection.salt;
+    }
+    updates.access_version = existing.data.access_version + 1;
+  }
+
+  const updated = await supabase.from("gifts").update(updates).eq("id", existing.data.id);
+  if (updated.error) throw updated.error;
+  return getOwnedDashboardGift(publicId, ownerId);
+}
+
+export async function setOwnedGiftArchived(publicId: string, ownerId: string, archived: boolean) {
+  const supabase = createSupabaseAdmin();
+  const existing = await supabase
+    .from("gifts")
+    .select("id, status, archived_from_status")
+    .eq("public_id", publicId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  if (existing.error) throw existing.error;
+  if (!existing.data) return null;
+
+  if (archived) {
+    if (existing.data.status === "archived") return getOwnedDashboardGift(publicId, ownerId);
+    const update = await supabase
+      .from("gifts")
+      .update({ status: "archived", archived_from_status: existing.data.status })
+      .eq("id", existing.data.id);
+    if (update.error) throw update.error;
+  } else {
+    if (existing.data.status !== "archived") return getOwnedDashboardGift(publicId, ownerId);
+    const restoreStatus = existing.data.archived_from_status ?? "draft";
+    const update = await supabase
+      .from("gifts")
+      .update({ status: restoreStatus, archived_from_status: null })
+      .eq("id", existing.data.id);
+    if (update.error) throw update.error;
+  }
+  return getOwnedDashboardGift(publicId, ownerId);
+}
+
+export async function publishOwnedDraft(publicId: string, ownerId: string) {
+  const supabase = createSupabaseAdmin();
+  const existing = await supabase
+    .from("gifts")
+    .select("id, status, opens_at, expires_at")
+    .eq("public_id", publicId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  if (existing.error) throw existing.error;
+  if (!existing.data || !["draft", "wrapped"].includes(existing.data.status)) return { state: "invalid" as const };
+
+  const now = Date.now();
+  if (existing.data.expires_at && new Date(existing.data.expires_at).getTime() <= now) return { state: "expired" as const };
+  const publish = await supabase
+    .from("gifts")
+    .update({
+      status: "published",
+      published_at: new Date(now).toISOString(),
+      opens_at: existing.data.opens_at && new Date(existing.data.opens_at).getTime() > now ? existing.data.opens_at : null,
+    })
+    .eq("id", existing.data.id);
+  if (publish.error) throw publish.error;
+  return { state: "published" as const, gift: await getOwnedDashboardGift(publicId, ownerId) };
+}
+
+export async function deleteOwnedGift(publicId: string, ownerId: string) {
+  const supabase = createSupabaseAdmin();
+  const deleted = await supabase
+    .from("gifts")
+    .delete()
+    .eq("public_id", publicId)
+    .eq("owner_id", ownerId)
+    .select("public_id")
+    .maybeSingle();
+  if (deleted.error) throw deleted.error;
+  return Boolean(deleted.data);
+}
+
+export async function duplicateOwnedGift(publicId: string, ownerId: string) {
+  const supabase = createSupabaseAdmin();
+  const source = await supabase
+    .from("gifts")
+    .select("occasion, gift_type, recipient_name, sender_name, message, theme, builder_data")
+    .eq("public_id", publicId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  if (source.error) throw source.error;
+  if (!source.data) return null;
+
+  const draftPublicId = createPublicId();
+  const token = createManagementToken();
+  const draft = await supabase.from("gifts").insert({
+    public_id: draftPublicId,
+    management_token_hash: hashManagementToken(token),
+    status: "draft",
+    owner_id: ownerId,
+    claimed_at: new Date().toISOString(),
+    occasion: source.data.occasion,
+    gift_type: source.data.gift_type,
+    recipient_name: source.data.recipient_name,
+    sender_name: source.data.sender_name,
+    message: source.data.message,
+    theme: source.data.theme,
+    builder_data: source.data.builder_data,
+  });
+  if (draft.error) throw draft.error;
+  return getOwnedDashboardGift(draftPublicId, ownerId);
+}
+
+export async function saveOwnedGiftAsTemplate(publicId: string, ownerId: string, name: string) {
+  const supabase = createSupabaseAdmin();
+  const source = await supabase
+    .from("gifts")
+    .select("id, occasion, gift_type, theme, builder_data")
+    .eq("public_id", publicId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  if (source.error) throw source.error;
+  if (!source.data) return null;
+
+  const template = await supabase.from("gift_templates").insert({
+    owner_id: ownerId,
+    source_gift_id: source.data.id,
+    name,
+    occasion: source.data.occasion,
+    gift_type: source.data.gift_type,
+    theme: source.data.theme,
+    builder_data: source.data.builder_data,
+  }).select("id, name, occasion, gift_type, theme, builder_data, created_at, updated_at").single();
+  if (template.error) throw template.error;
+  return toSavedGiftTemplate(template.data);
+}
+
+export async function deleteOwnedGiftTemplate(templateId: string, ownerId: string) {
+  const supabase = createSupabaseAdmin();
+  const deleted = await supabase.from("gift_templates").delete().eq("id", templateId).eq("owner_id", ownerId).select("id").maybeSingle();
+  if (deleted.error) throw deleted.error;
+  return Boolean(deleted.data);
+}
+
+export async function createOwnedDraftFromTemplate(templateId: string, ownerId: string) {
+  const supabase = createSupabaseAdmin();
+  const template = await supabase
+    .from("gift_templates")
+    .select("occasion, gift_type, theme, builder_data")
+    .eq("id", templateId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  if (template.error) throw template.error;
+  if (!template.data) return null;
+
+  const publicId = createPublicId();
+  const token = createManagementToken();
+  const draft = await supabase.from("gifts").insert({
+    public_id: publicId,
+    management_token_hash: hashManagementToken(token),
+    status: "draft",
+    owner_id: ownerId,
+    claimed_at: new Date().toISOString(),
+    occasion: template.data.occasion ?? "Just Because",
+    gift_type: template.data.gift_type,
+    recipient_name: "Recipient",
+    sender_name: "You",
+    message: "Write something meaningful here.",
+    theme: template.data.theme,
+    builder_data: template.data.builder_data,
+  });
+  if (draft.error) throw draft.error;
+  return getOwnedDashboardGift(publicId, ownerId);
 }
 
 export async function getManagedGift(publicId: string, managementToken: string) {

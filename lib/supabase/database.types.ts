@@ -1,6 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-type GiftStatus = "draft" | "wrapped" | "published" | "opened" | "replied" | "disabled";
+type GiftStatus = "draft" | "wrapped" | "published" | "opened" | "replied" | "disabled" | "archived";
 type GiftTheme = "rose" | "wine" | "sage" | "gold";
 
 export type Database = {
@@ -9,6 +9,7 @@ export type Database = {
       gifts: {
         Row: {
           access_version: number;
+          archived_from_status: Exclude<GiftStatus, "archived"> | null;
           builder_data: Json;
           claimed_at: string | null;
           created_at: string;
@@ -33,6 +34,7 @@ export type Database = {
         };
         Insert: {
           access_version?: number;
+          archived_from_status?: Exclude<GiftStatus, "archived"> | null;
           builder_data?: Json;
           claimed_at?: string | null;
           created_at?: string;
@@ -56,6 +58,34 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["gifts"]["Insert"]>;
+        Relationships: [];
+      };
+      gift_templates: {
+        Row: {
+          builder_data: Json;
+          created_at: string;
+          gift_type: string;
+          id: string;
+          name: string;
+          occasion: string | null;
+          owner_id: string;
+          source_gift_id: string | null;
+          theme: GiftTheme;
+          updated_at: string;
+        };
+        Insert: {
+          builder_data?: Json;
+          created_at?: string;
+          gift_type: string;
+          id?: string;
+          name: string;
+          occasion?: string | null;
+          owner_id: string;
+          source_gift_id?: string | null;
+          theme: GiftTheme;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["gift_templates"]["Insert"]>;
         Relationships: [];
       };
       gift_responses: {
