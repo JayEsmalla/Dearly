@@ -24,6 +24,7 @@ export default function RecipientGift({ gift }: { gift: PublicGift }) {
         occasion={gift.occasion}
         giftType={gift.giftType}
         finalMessage={gift.message}
+        persistenceKey={gift.publicId}
       >
         <GiftFormatExperience
           gift={gift.giftType}

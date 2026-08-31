@@ -173,6 +173,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const historyRef = useRef<EditorSnapshot[]>([]);
+  const previewTriggerRef = useRef<HTMLButtonElement>(null);
   const draftKey = getDraftKey(occasion, gift, templateId);
 
   const templatePresentation = () => getPresentationDefaults(template, style);
@@ -234,7 +235,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
     }, 0);
 
     return () => window.clearTimeout(timeout);
-  }, [draftKey]);
+  }, [draftKey, style, template, templateId]);
 
   useEffect(() => {
     if (loadedDraftKey !== draftKey) return;
@@ -268,7 +269,10 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
     if (!previewOpen) return;
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPreviewOpen(false);
+      if (event.key === "Escape") {
+        setPreviewOpen(false);
+        window.setTimeout(() => previewTriggerRef.current?.focus(), 0);
+      }
     };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
@@ -573,7 +577,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
 
           {!publishedGift ? (
             <>
-              <button className="preview-button" type="button" onClick={openPreview} disabled={!recipient.trim() || !sender.trim() || !message.trim() || !finalMessage.trim()}>
+              <button ref={previewTriggerRef} className="preview-button" type="button" onClick={openPreview} disabled={!recipient.trim() || !sender.trim() || !message.trim() || !finalMessage.trim()}>
                 Wrap & preview <span aria-hidden="true">→</span>
               </button>
               <button className="publish-button" type="button" onClick={publishCurrentGift} disabled>Publishing returns after front-end completion</button>
@@ -601,7 +605,7 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
 
       {previewOpen && (
         <div className="gift-modal" role="dialog" aria-modal="true" aria-label="Recipient gift preview" style={previewStyle}>
-          <button className="modal-close" type="button" onClick={() => setPreviewOpen(false)} aria-label="Close recipient preview" autoFocus>×</button>
+          <button className="modal-close" type="button" onClick={() => { setPreviewOpen(false); window.setTimeout(() => previewTriggerRef.current?.focus(), 0); }} aria-label="Close recipient preview" autoFocus>×</button>
           <RecipientExperience recipientName={recipient} senderName={sender} occasion={occasion} giftType={gift} finalMessage={finalMessage} preview>
             <GiftFormatExperience {...experienceProps} />
           </RecipientExperience>
