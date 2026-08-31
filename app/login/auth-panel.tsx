@@ -6,7 +6,7 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 type Mode = "signin" | "signup";
 
-export default function AuthPanel() {
+export default function AuthPanel({ nextPath = "/dashboard" }: { nextPath?: string }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -28,7 +28,7 @@ export default function AuthPanel() {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
-        router.push("/dashboard");
+        router.replace(nextPath);
       } else {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
@@ -37,7 +37,7 @@ export default function AuthPanel() {
         });
         if (error) throw error;
         setStatus(data.session ? "Account created. Opening your dashboard…" : "Check your email to confirm your Dearly account.");
-        if (data.session) router.push("/dashboard");
+        if (data.session) router.replace(nextPath);
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Authentication could not be completed.");

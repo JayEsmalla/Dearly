@@ -16,5 +16,5 @@ export function AccountLink() {
     return () => { active = false; data.subscription.unsubscribe(); };
   }, []);
 
-  return <Link className="account-link" href={signedIn ? "/dashboard" : "/login"}>{signedIn ? "Dashboard" : "Sign in"}</Link>;
+  return <Link className="account-link" href={signedIn ? "/dashboard" : "/login"}>{signedIn ? "My gifts" : "Sign in"}</Link>;
 }

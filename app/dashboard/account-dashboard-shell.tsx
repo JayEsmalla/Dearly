@@ -27,7 +27,7 @@ export default function AccountDashboardShell() {
 
   const signOut = async () => {
     await getSupabaseBrowser()?.auth.signOut();
-    router.push("/");
+    router.replace("/");
   };
 
   return (
@@ -35,7 +35,7 @@ export default function AccountDashboardShell() {
       <span className="step-label">Your Dearly account</span>
       <h1>{state === "signed-in" ? "Your gifts, together." : "Account dashboard"}</h1>
       {state === "loading" && <p>Loading your account…</p>}
-      {state === "signed-in" && <><p>Signed in as {email}. Your full gift dashboard arrives in Phase 14; account ownership is active now.</p><div><Link className="button button--primary" href="/create">Create another gift</Link><button className="button button--quiet" type="button" onClick={signOut}>Sign out</button></div></>}
+      {state === "signed-in" && <><p>Signed in as {email}. Your account keeps your owned gifts together while the full dashboard is completed.</p><div><button className="button button--quiet" type="button" onClick={signOut}>Sign out</button></div></>}
       {state === "guest" && <><p>Sign in to see account-owned gifts and future reactions.</p><Link className="button button--primary" href="/login">Sign in</Link></>}
       {state === "unconfigured" && <p>Account services need Supabase browser environment variables before sign-in can run.</p>}
     </section>

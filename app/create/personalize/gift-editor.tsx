@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { BrandLink } from "@/app/ui/brand";
+import { WorkflowHeader } from "@/app/ui/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { RecipientExperience } from "@/app/ui/recipient-experience";
 import { ShareTools } from "@/app/ui/share-tools";
@@ -501,11 +500,12 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
 
   return (
     <main className="editor-shell">
-      <header className="editor-header">
-        <BrandLink className="workflow-brand" />
-        <div className="editor-context"><span>{occasion}</span><i>·</i><span>{gift}</span>{template?.name && <><i>·</i><span>{template.name}</span></>}</div>
-        <Link className="workflow-exit" href={`/create?${backParams.toString()}`}>Back</Link>
-      </header>
+      <WorkflowHeader
+        backHref={`/create?${backParams.toString()}`}
+        backLabel="Templates"
+        context={`${gift}${template?.name ? ` · ${template.name}` : ""}`}
+        exitLabel="Exit builder"
+      />
 
       <nav className="editor-mobile-tabs" aria-label="Gift builder sections">
         <a href="#builder-content">Content</a><a href="#builder-design">Design</a><a href="#builder-effects">Effects</a><a href="#builder-delivery">Delivery</a><a href="#builder-preview">Preview</a>

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { ManagedGift } from "@/lib/gifts/schema";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { ShareTools } from "@/app/ui/share-tools";
+import { WorkspaceHeader } from "@/app/ui/navigation";
 
 const themeOptions = ["rose", "wine", "sage", "gold"] as const;
 
@@ -143,6 +144,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
   if (!gift) {
     return (
       <main className="guest-manager-shell">
+        <WorkspaceHeader label="Gift management" actionHref="/create" actionLabel="Create gift" />
         <section className="guest-manager-loading" aria-live="polite">
           <span aria-hidden="true">♥</span><p>Dearly</p><h1>Private gift management</h1><small>{status}</small>
         </section>
@@ -154,7 +156,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
 
   return (
     <main className="guest-manager-shell">
-      <header className="guest-manager-header"><Link href="/">♥ Dearly</Link><span>Private guest management</span></header>
+      <WorkspaceHeader label="Gift management" actionHref="/create" actionLabel="Create gift" />
       <div className="guest-manager-layout">
         <aside className="guest-manager-summary">
           <span className="step-label">Guest gift</span>
@@ -171,7 +173,7 @@ export default function GuestGiftManager({ publicId, token }: Props) {
           {!disabled && <ShareTools url={`/g/${gift.publicId}`} recipientName={gift.recipientName} senderName={gift.senderName} compact />}
           {!disabled && <a href={`/g/${gift.publicId}`} target="_blank" rel="noreferrer">Open recipient view ↗</a>}
           {!gift.ownerId && accountToken && <button className="guest-claim-action" type="button" disabled={busy} onClick={claimGift}>Add to my account</button>}
-          {!gift.ownerId && !accountToken && <Link className="guest-signin-link" href="/login">Sign in to save this gift</Link>}
+          {!gift.ownerId && !accountToken && <Link className="guest-signin-link" href={`/login?next=${encodeURIComponent(`/manage/${publicId}?token=${token}`)}`}>Sign in to save this gift</Link>}
           {gift.ownerId && <span className="guest-account-owned">✓ Saved to a Dearly account</span>}
         </aside>
 

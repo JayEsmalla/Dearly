@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { giftStyles, giftTypes, occasions, recipientTypes, recommendTemplates } from "@/app/data/options";
-import { ArrowIcon, BrandLink } from "@/app/ui/brand";
+import { ArrowIcon } from "@/app/ui/brand";
+import { WorkflowHeader } from "@/app/ui/navigation";
 
 const skipped = "_skip";
 
@@ -17,14 +18,6 @@ function buildCreateHref(values: { occasion?: string; recipient?: string; gift?:
   if (values.gift) params.set("gift", values.gift);
   if (values.style) params.set("style", values.style);
   return `/create?${params.toString()}`;
-}
-
-function Progress({ step }: { step: GuidedStep }) {
-  return (
-    <div className="workflow-progress guided-progress" aria-label={`Setup step ${step} of 5`}>
-      {[1, 2, 3, 4, 5].map((item) => <span className={step >= item ? "active" : ""} key={item} />)}
-    </div>
-  );
 }
 
 function Summary({ occasion, recipient, gift, style }: { occasion?: string; recipient?: string; gift?: string; style?: string }) {
@@ -58,11 +51,7 @@ export default async function CreatePage({ searchParams }: CreatePageProps) {
 
   return (
     <main className="workflow-shell">
-      <header className="workflow-header">
-        <BrandLink className="workflow-brand" />
-        <Progress step={step} />
-        <Link className="workflow-exit" href="/">Exit</Link>
-      </header>
+      <WorkflowHeader step={step} backHref={step > 1 ? backHref : undefined} exitLabel="Exit setup" />
 
       <div className="selection-layout">
         <aside className="selection-aside">
@@ -70,7 +59,6 @@ export default async function CreatePage({ searchParams }: CreatePageProps) {
           <h1>{current.title}</h1>
           <p>{current.body}</p>
           <Summary occasion={occasion} recipient={recipient} gift={gift} style={style} />
-          {step > 1 && <Link className="back-link" href={backHref}>← Back</Link>}
         </aside>
 
         <section className="selection-content" aria-labelledby="selection-title">

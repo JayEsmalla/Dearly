@@ -1,22 +1,14 @@
 import Link from "next/link";
 import { giftTypes, occasions } from "@/app/data/options";
-import { ArrowIcon, BrandLink, HeartMark } from "@/app/ui/brand";
-import { AccountLink } from "@/app/ui/account-link";
+import { ArrowIcon, HeartMark } from "@/app/ui/brand";
+import { SiteHeader } from "@/app/ui/navigation";
 
 export default function Home() {
   return (
     <main>
       <a className="skip-link" href="#main-content">Skip to content</a>
 
-      <header className="site-header">
-        <BrandLink />
-        <nav className="main-nav" aria-label="Main navigation">
-          <a href="#formats">Gift formats</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#recipient-view">Recipient view</a>
-        </nav>
-        <div className="header-actions"><AccountLink /><Link className="header-cta" href="/create">Create a gift <ArrowIcon /></Link></div>
-      </header>
+      <SiteHeader />
 
       <section className="hero" id="main-content">
         <div className="hero-copy">
