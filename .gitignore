@@ -27,6 +27,9 @@ Thumbs.db
 # local project planning
 Dearly_Project_Discussion_and_Agreements.md
 
+# Supabase local CLI state
+/supabase/.temp/
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
