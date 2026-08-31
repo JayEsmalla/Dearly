@@ -5,6 +5,7 @@ export type Database = {
     Tables: {
       gifts: {
         Row: {
+          builder_data: Json;
           created_at: string;
           expires_at: string | null;
           gift_type: string;
@@ -23,6 +24,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          builder_data?: Json;
           created_at?: string;
           expires_at?: string | null;
           gift_type: string;
@@ -50,4 +52,3 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
-

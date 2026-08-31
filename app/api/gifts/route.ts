@@ -8,6 +8,7 @@ function json(body: unknown, status: number) {
     headers: { "Cache-Control": "no-store" },
   });
 }
+
 export async function POST(request: Request) {
   let body: unknown;
 
@@ -30,15 +31,15 @@ export async function POST(request: Request) {
 
   try {
     const { gift, managementToken } = await publishGift(parsed.data);
-    return json({ gift, sharePath: `/g/${gift.publicId}`, managementToken }, 201);
+    return json({
+      gift,
+      sharePath: `/g/${gift.publicId}`,
+      managementPath: `/manage/${gift.publicId}?token=${encodeURIComponent(managementToken)}`,
+      managementToken,
+    }, 201);
   } catch (error) {
     if (error instanceof SupabaseNotConfiguredError) {
-      return json({
-        error: {
-          code: "gift_service_not_configured",
-          message: "Publishing is not connected yet.",
-        },
-      }, 503);
+      return json({ error: { code: "gift_service_not_configured", message: "Publishing is not connected yet." } }, 503);
     }
 
     console.error("Gift publication failed", error);

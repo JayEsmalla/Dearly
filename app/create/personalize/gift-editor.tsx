@@ -41,7 +41,7 @@ type GiftEditorProps = {
   template?: TemplatePreset | null;
 };
 
-type PublishedGift = { publicId: string; shareUrl: string };
+type PublishedGift = { publicId: string; shareUrl: string; managementUrl: string };
 type LocalGiftDraft = {
   version: 1;
   recipient: string;
@@ -163,8 +163,8 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
   const [photos, setPhotos] = useState<GiftPhoto[]>([]);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [, setHasPreviewed] = useState(false);
-  const [, setPublishing] = useState(false);
+  const [hasPreviewed, setHasPreviewed] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishedGift, setPublishedGift] = useState<PublishedGift | null>(null);
   const [copied, setCopied] = useState(false);
@@ -429,16 +429,18 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
           senderName: sender,
           message,
           theme: theme.name.toLowerCase(),
+          builderData: { finalMessage, signature, details, presentation },
         }),
       });
       const result = await response.json() as {
         gift?: { publicId: string };
         sharePath?: string;
+        managementPath?: string;
         managementToken?: string;
         error?: { code?: string; message?: string };
       };
 
-      if (!response.ok || !result.gift || !result.sharePath) {
+      if (!response.ok || !result.gift || !result.sharePath || !result.managementPath) {
         if (result.error?.code === "gift_service_not_configured") {
           throw new Error("Publishing is ready, but the gift service still needs to be connected.");
         }
@@ -449,10 +451,18 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
         window.localStorage.setItem(`dearly:management:${result.gift.publicId}`, result.managementToken);
       }
 
-      setPublishedGift({
-        publicId: result.gift.publicId,
-        shareUrl: new URL(result.sharePath, window.location.origin).toString(),
-      });
+      const shareUrl = new URL(result.sharePath, window.location.origin).toString();
+      const managementUrl = new URL(result.managementPath, window.location.origin).toString();
+      setPublishedGift({ publicId: result.gift.publicId, shareUrl, managementUrl });
+
+      try {
+        const stored = window.localStorage.getItem("dearly:guest-gifts:v1");
+        const history = stored ? JSON.parse(stored) as { publicId: string; shareUrl: string; managementUrl: string; recipientName: string; savedAt: string }[] : [];
+        const next = [{ publicId: result.gift.publicId, shareUrl, managementUrl, recipientName: recipient, savedAt: new Date().toISOString() }, ...history.filter((item) => item.publicId !== result.gift!.publicId)].slice(0, 50);
+        window.localStorage.setItem("dearly:guest-gifts:v1", JSON.stringify(next));
+      } catch {
+        // Publishing succeeded; local management history is only a convenience.
+      }
     } catch (error) {
       setPublishError(error instanceof Error ? error.message : "The gift could not be published. Please try again.");
     } finally {
@@ -580,15 +590,17 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
               <button ref={previewTriggerRef} className="preview-button" type="button" onClick={openPreview} disabled={!recipient.trim() || !sender.trim() || !message.trim() || !finalMessage.trim()}>
                 Wrap & preview <span aria-hidden="true">→</span>
               </button>
-              <button className="publish-button" type="button" onClick={publishCurrentGift} disabled>Publishing returns after front-end completion</button>
+              <button className="publish-button" type="button" onClick={publishCurrentGift} disabled={!hasPreviewed || publishing || !recipient.trim() || !sender.trim() || !message.trim()}>{publishing ? "Publishing…" : hasPreviewed ? "Publish gift" : "Preview before publishing"}</button>
               {publishError && <p className="publish-error" role="alert">{publishError}</p>}
-              <p className="local-note"><span aria-hidden="true">i</span> Local autosave is active. Server publishing remains intentionally inactive until Phase 8.</p>
+              <p className="local-note"><span aria-hidden="true">i</span> Guest publishing uses a public recipient link and a separate private management link.</p>
             </>
           ) : (
             <section className="share-panel" aria-live="polite">
               <span className="share-success">Gift published</span><h2>Your link is ready.</h2><p>Send this private link directly to {recipient}.</p>
               <input aria-label="Share link" readOnly value={publishedGift.shareUrl} onFocus={(event) => event.currentTarget.select()} />
               <div className="share-actions"><button type="button" onClick={copyShareLink}>{copied ? "Copied" : "Copy link"}</button><a href={publishedGift.shareUrl} target="_blank" rel="noreferrer">Open gift ↗</a></div>
+              <a className="management-link" href={publishedGift.managementUrl}>Manage this gift privately →</a>
+              <small className="management-warning">Keep the management link private. Anyone with it can edit or disable this gift.</small>
             </section>
           )}
         </section>

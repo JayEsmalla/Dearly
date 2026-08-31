@@ -14,6 +14,7 @@ const themeColors = {
 export default function RecipientGift({ gift }: { gift: PublicGift }) {
   const theme = themeColors[gift.theme];
   const style = { "--theme-color": theme.color, "--theme-paper": theme.paper } as React.CSSProperties;
+  const details = { ...defaultGiftFormatDetails, ...gift.builderData.details };
 
   return (
     <main className="public-gift-page" style={style}>
@@ -23,7 +24,7 @@ export default function RecipientGift({ gift }: { gift: PublicGift }) {
         senderName={gift.senderName}
         occasion={gift.occasion}
         giftType={gift.giftType}
-        finalMessage={gift.message}
+        finalMessage={gift.builderData.finalMessage || gift.message}
         persistenceKey={gift.publicId}
       >
         <GiftFormatExperience
@@ -31,7 +32,10 @@ export default function RecipientGift({ gift }: { gift: PublicGift }) {
           recipient={gift.recipientName}
           sender={gift.senderName}
           message={gift.message}
-          details={defaultGiftFormatDetails}
+          signature={gift.builderData.signature}
+          details={details}
+          presentation={gift.builderData.presentation}
+          finalMessage={gift.builderData.finalMessage}
         />
       </RecipientExperience>
     </main>
