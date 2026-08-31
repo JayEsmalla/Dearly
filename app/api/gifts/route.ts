@@ -1,3 +1,4 @@
+import { getRequestUser } from "@/lib/auth/server";
 import { publishGift } from "@/lib/gifts/repository";
 import { publishGiftInputSchema } from "@/lib/gifts/schema";
 import { SupabaseNotConfiguredError } from "@/lib/supabase/server";
@@ -30,7 +31,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { gift, managementToken } = await publishGift(parsed.data);
+    const auth = await getRequestUser(request);
+    if (auth.state === "invalid") return json({ error: { code: "invalid_session", message: "Please sign in again before publishing." } }, 401);
+    const { gift, managementToken } = await publishGift(parsed.data, auth.user?.id ?? null);
     return json({
       gift,
       sharePath: `/g/${gift.publicId}`,

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ManagedGift } from "@/lib/gifts/schema";
+import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 const themeOptions = ["rose", "wine", "sage", "gold"] as const;
 
@@ -17,8 +18,18 @@ export default function GuestGiftManager({ publicId, token }: Props) {
   const [status, setStatus] = useState(token ? "Loading your private gift…" : "This management link is missing its private token.");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [accountToken, setAccountToken] = useState<string | null>(null);
 
   const authorizationValue = `Bearer ${token}`;
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => { if (active) setAccountToken(data.session?.access_token ?? null); });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => setAccountToken(session?.access_token ?? null));
+    return () => { active = false; data.subscription.unsubscribe(); };
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -81,6 +92,26 @@ export default function GuestGiftManager({ publicId, token }: Props) {
     }
   };
 
+  const claimGift = async () => {
+    if (!gift || !accountToken || gift.ownerId) return;
+    setBusy(true);
+    setStatus("Adding gift to your account…");
+    try {
+      const response = await fetch(`/api/gifts/${encodeURIComponent(publicId)}/claim`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accountToken}`, "X-Management-Token": token },
+      });
+      const result = await response.json() as { gift?: ManagedGift; error?: { message?: string } };
+      if (!response.ok || !result.gift) throw new Error(result.error?.message ?? "The gift could not be added to your account.");
+      setGift(result.gift);
+      setStatus("Gift added to your Dearly account.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "The gift could not be added to your account.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copyGiftLink = async () => {
     const link = `${window.location.origin}/g/${publicId}`;
     await navigator.clipboard.writeText(link);
@@ -115,6 +146,9 @@ export default function GuestGiftManager({ publicId, token }: Props) {
           </dl>
           <button type="button" onClick={copyGiftLink}>{copied ? "Copied public link" : "Copy public link"}</button>
           {!disabled && <a href={`/g/${gift.publicId}`} target="_blank" rel="noreferrer">Open recipient view ↗</a>}
+          {!gift.ownerId && accountToken && <button className="guest-claim-action" type="button" disabled={busy} onClick={claimGift}>Add to my account</button>}
+          {!gift.ownerId && !accountToken && <Link className="guest-signin-link" href="/login">Sign in to save this gift</Link>}
+          {gift.ownerId && <span className="guest-account-owned">✓ Saved to a Dearly account</span>}
         </aside>
 
         <section className="guest-manager-card" aria-labelledby="manage-title">

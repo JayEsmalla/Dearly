@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { giftTypes, occasions } from "@/app/data/options";
 import { ArrowIcon, BrandLink, HeartMark } from "@/app/ui/brand";
+import { AccountLink } from "@/app/ui/account-link";
 
 export default function Home() {
   return (
@@ -14,7 +15,7 @@ export default function Home() {
           <a href="#how-it-works">How it works</a>
           <a href="#recipient-view">Recipient view</a>
         </nav>
-        <Link className="header-cta" href="/create">Create a gift <ArrowIcon /></Link>
+        <div className="header-actions"><AccountLink /><Link className="header-cta" href="/create">Create a gift <ArrowIcon /></Link></div>
       </header>
 
       <section className="hero" id="main-content">

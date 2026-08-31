@@ -6,6 +6,7 @@ export type Database = {
       gifts: {
         Row: {
           builder_data: Json;
+          claimed_at: string | null;
           created_at: string;
           expires_at: string | null;
           gift_type: string;
@@ -15,6 +16,7 @@ export type Database = {
           occasion: string;
           opened_at: string | null;
           opens_at: string | null;
+          owner_id: string | null;
           public_id: string;
           published_at: string | null;
           recipient_name: string;
@@ -25,6 +27,7 @@ export type Database = {
         };
         Insert: {
           builder_data?: Json;
+          claimed_at?: string | null;
           created_at?: string;
           expires_at?: string | null;
           gift_type: string;
@@ -34,6 +37,7 @@ export type Database = {
           occasion: string;
           opened_at?: string | null;
           opens_at?: string | null;
+          owner_id?: string | null;
           public_id: string;
           published_at?: string | null;
           recipient_name: string;

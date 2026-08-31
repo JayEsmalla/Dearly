@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BrandLink } from "@/app/ui/brand";
+import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { RecipientExperience } from "@/app/ui/recipient-experience";
 import {
   backgroundOptions,
@@ -419,9 +420,11 @@ export default function GiftEditor({ occasion, gift, recipientType, style, templ
     setPublishError(null);
 
     try {
+      const session = await getSupabaseBrowser()?.auth.getSession();
+      const accessToken = session?.data.session?.access_token;
       const response = await fetch("/api/gifts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
         body: JSON.stringify({
           occasion,
           giftType: gift,

@@ -5,7 +5,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { publishedBuilderDataSchema, type ManageGiftUpdate, type ManagedGift, type PublishGiftInput, type PublicGift } from "./schema";
 
 const publicGiftColumns = "public_id, occasion, gift_type, recipient_name, sender_name, message, theme, builder_data, opens_at, expires_at, published_at";
-const managedGiftColumns = `${publicGiftColumns}, status, updated_at`;
+const managedGiftColumns = `${publicGiftColumns}, status, updated_at, owner_id`;
 
 function createPublicId() {
   return randomBytes(12).toString("base64url");
@@ -52,15 +52,20 @@ function toPublicGift(row: {
   };
 }
 
-function toManagedGift(row: Parameters<typeof toPublicGift>[0] & { status: "draft" | "wrapped" | "published" | "disabled"; updated_at: string }): ManagedGift {
+function toManagedGift(row: Parameters<typeof toPublicGift>[0] & {
+  status: "draft" | "wrapped" | "published" | "disabled";
+  updated_at: string;
+  owner_id: string | null;
+}): ManagedGift {
   return {
     ...toPublicGift(row),
     status: row.status,
     updatedAt: row.updated_at,
+    ownerId: row.owner_id,
   };
 }
 
-export async function publishGift(input: PublishGiftInput) {
+export async function publishGift(input: PublishGiftInput, ownerId: string | null = null) {
   const supabase = createSupabaseAdmin();
   const publicId = createPublicId();
   const managementToken = createManagementToken();
@@ -79,6 +84,8 @@ export async function publishGift(input: PublishGiftInput) {
       message: input.message,
       theme: input.theme,
       builder_data: input.builderData ?? {},
+      owner_id: ownerId,
+      claimed_at: ownerId ? new Date().toISOString() : null,
     })
     .select(publicGiftColumns)
     .single();
@@ -132,6 +139,34 @@ export async function updateManagedGift(publicId: string, managementToken: strin
 
   if (error) throw error;
   return data ? toManagedGift(data) : null;
+}
+
+export async function claimManagedGift(publicId: string, managementToken: string, ownerId: string) {
+  const supabase = createSupabaseAdmin();
+  const tokenHash = hashManagementToken(managementToken);
+  const existing = await supabase
+    .from("gifts")
+    .select(managedGiftColumns)
+    .eq("public_id", publicId)
+    .eq("management_token_hash", tokenHash)
+    .maybeSingle();
+
+  if (existing.error) throw existing.error;
+  if (!existing.data) return null;
+  if (existing.data.owner_id && existing.data.owner_id !== ownerId) return { state: "owned_by_other" as const, gift: toManagedGift(existing.data) };
+  if (existing.data.owner_id === ownerId) return { state: "already_owned" as const, gift: toManagedGift(existing.data) };
+
+  const { data, error } = await supabase
+    .from("gifts")
+    .update({ owner_id: ownerId, claimed_at: new Date().toISOString() })
+    .eq("public_id", publicId)
+    .eq("management_token_hash", tokenHash)
+    .is("owner_id", null)
+    .select(managedGiftColumns)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? { state: "claimed" as const, gift: toManagedGift(data) } : null;
 }
 
 export async function disableManagedGift(publicId: string, managementToken: string) {

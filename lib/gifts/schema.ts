@@ -53,6 +53,7 @@ export const publicGiftSchema = z.object({
 export const managedGiftSchema = publicGiftSchema.extend({
   status: giftStatusSchema,
   updatedAt: z.string(),
+  ownerId: z.string().uuid().nullable(),
 });
 
 export type PublishGiftInput = z.infer<typeof publishGiftInputSchema>;
